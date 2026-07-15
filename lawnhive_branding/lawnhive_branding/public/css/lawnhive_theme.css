@@ -1,0 +1,333 @@
+/*
+ * LawnHive HR — Brand Theme
+ * Brand Color: #f59f36
+ * Text on white backgrounds stays DARK.
+ * Error (red) and Success (green) are NOT overridden.
+ */
+
+/* ═══════════════════════════════════════════
+   1. Brand CSS Variables
+   ═══════════════════════════════════════════ */
+
+:root {
+    --primary: #f59f36;
+    --primary-color: #f59f36;
+    --primary-dark: #d97f1f;
+    --primary-light: #fdd9a8;
+    --btn-primary-color: #ffffff;
+    --lnh-orange: #f59f36;
+    --lnh-orange-dark: #d97f1f;
+    --lnh-orange-light: #fdd9a8;
+    --lnh-blue: #21537a;
+    --lnh-blue-dark: #1a4265;
+    --lnh-teal: #1a7283;
+    --sidebar-select-color: #fdd9a8;
+}
+
+/* ═══════════════════════════════════════════
+   2. Primary Buttons — Orange with white text
+   ═══════════════════════════════════════════ */
+
+.btn-primary,
+.primary-action {
+    background-color: #f59f36 !important;
+    border-color: #f59f36 !important;
+    color: #ffffff !important;
+}
+.btn-primary:hover,
+.primary-action:hover {
+    background-color: #d97f1f !important;
+    border-color: #d97f1f !important;
+    color: #ffffff !important;
+}
+
+/* ═══════════════════════════════════════════
+   3. Links & Navbar — Brand color, dark text on white
+   ═══════════════════════════════════════════ */
+
+/* Navbar bar: dark blue background */
+.navbar {
+    background-color: var(--lnh-blue) !important;
+    border-bottom: 2px solid #f59f36 !important;
+}
+
+/* Navbar text: white on dark blue */
+.navbar .navbar-brand,
+.navbar > .container .navbar-nav .nav-link {
+    color: #ffffff !important;
+}
+.navbar .navbar-brand {
+    color: #f59f36 !important;
+    font-weight: 700;
+}
+.navbar > .container .navbar-nav .nav-link:hover {
+    color: #f59f36 !important;
+}
+
+/* Dropdown menus: white background, dark text */
+.navbar .dropdown-menu .dropdown-item {
+    color: #383838 !important;
+    background-color: #ffffff !important;
+}
+.navbar .dropdown-menu .dropdown-item:hover {
+    background-color: #f3f3f3 !important;
+    color: #171717 !important;
+}
+
+/* ═══════════════════════════════════════════
+   4. Sidebar — Off-white cream, wider, NO gradient
+   ═══════════════════════════════════════════ */
+
+.desk-sidebar {
+    background-color: #fef9f3 !important;
+    background-image: none !important;
+    border-right: 1px solid #f0e4d3 !important;
+    width: 240px !important;
+    max-width: 240px !important;
+    min-width: 240px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    scrollbar-width: thin;
+}
+.desk-sidebar::-webkit-scrollbar {
+    width: 4px;
+}
+.desk-sidebar::-webkit-scrollbar-thumb {
+    background-color: #e4e4e7;
+    border-radius: 4px;
+}
+
+.layout-side-section {
+    width: 240px !important;
+    max-width: 240px !important;
+    flex: 0 0 240px !important;
+    padding-right: 0 !important;
+    overflow-x: hidden !important;
+}
+
+.layout-side-section .desk-sidebar {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* Override Bootstrap col-lg-2 that forces percentage width */
+.layout-main .layout-side-section,
+[data-page-route="Workspaces"] .layout-side-section {
+    width: 240px !important;
+    max-width: 240px !important;
+    flex: 0 0 240px !important;
+    padding-right: 0 !important;
+}
+
+.desk-sidebar .sidebar-item-container,
+.desk-sidebar .standard-sidebar-item {
+    overflow-x: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+
+/* Section container */
+.desk-sidebar .standard-sidebar-section.nested-container {
+    padding: 0 6px;
+    margin-bottom: 16px;
+}
+.desk-sidebar .standard-sidebar-section.nested-container:last-of-type {
+    margin-bottom: 8px;
+}
+
+/* Section label: orange */
+.desk-sidebar .standard-sidebar-label {
+    color: #f59f36;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Sidebar items: dark text on white */
+.desk-sidebar .sidebar-item-container a,
+.desk-sidebar .standard-sidebar-item {
+    color: #2c2c2c !important;
+    background-color: transparent !important;
+    transition: background-color 0.15s ease;
+    border-radius: 6px;
+    border-left: 3px solid transparent;
+    margin: 0 0 2px 0;
+    padding: 8px 12px;
+}
+
+/* Hover: light orange bg — ONLY on :hover */
+.desk-sidebar .sidebar-item-container:hover a,
+.desk-sidebar .standard-sidebar-item:hover {
+    background-color: #fdd9a8 !important;
+    color: #d97f1f !important;
+}
+
+/* Active/selected: orange border + bg — ONLY when .selected */
+.desk-sidebar .sidebar-item-container.selected a,
+.desk-sidebar .selected {
+    background-color: #fdd9a8 !important;
+    border-left: 3px solid #f59f36 !important;
+    color: #d97f1f !important;
+}
+
+/* Active icon: orange */
+.desk-sidebar .standard-sidebar-item.selected svg {
+    stroke: #f59f36 !important;
+}
+
+/* Sidebar item icon sizing */
+.desk-sidebar .sidebar-item-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Child items: indented */
+.desk-sidebar .sidebar-child-item.nested-container {
+    padding-left: 16px;
+}
+
+/* ═══════════════════════════════════════════
+   5. Indicators & Badges — Orange
+   ═══════════════════════════════════════════ */
+
+/* Override indicator-pill blue to orange */
+.indicator-pill.blue,
+.indicator-pill-right.blue {
+    background-color: #f59f36 !important;
+}
+
+/* ═══════════════════════════════════════════
+   6. Page Elements
+   ═══════════════════════════════════════════ */
+
+.page-head {
+    border-bottom: 1px solid #fdd9a8 !important;
+}
+.page-title {
+    font-weight: 600;
+    font-size: 20px;
+}
+.section-head {
+    font-weight: 500;
+    color: #4a4a4a;
+}
+
+/* ═══════════════════════════════════════════
+   7. Modal Headers — Dark blue gradient
+   ═══════════════════════════════════════════ */
+
+.modal-header {
+    background: linear-gradient(135deg, var(--lnh-blue), var(--lnh-teal)) !important;
+    color: #ffffff !important;
+    border-radius: 8px 8px 0 0;
+}
+.modal-header .modal-title {
+    color: #ffffff !important;
+    font-weight: 600;
+}
+.modal-header .close {
+    color: #ffffff !important;
+    opacity: 0.8;
+}
+.modal-header .close:hover {
+    opacity: 1;
+}
+
+/* ═══════════════════════════════════════════
+   8. Login Page
+   ═══════════════════════════════════════════ */
+
+.login-content {
+    background: linear-gradient(135deg, var(--lnh-blue) 0%, var(--lnh-teal) 100%) !important;
+}
+.for-login .page-card {
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+.btn-login {
+    background: linear-gradient(135deg, #f59f36, #d97f1f) !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-login:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 159, 54, 0.4);
+}
+
+/* ═══════════════════════════════════════════
+   9. Tabs — Orange active
+   ═══════════════════════════════════════════ */
+
+.nav-tabs .nav-link.active {
+    border-bottom: 3px solid #f59f36 !important;
+    color: #f59f36 !important;
+    font-weight: 500;
+}
+
+/* ═══════════════════════════════════════════
+   10. Focus rings — Orange
+   ═══════════════════════════════════════════ */
+
+.form-control:focus,
+.btn:focus {
+    box-shadow: 0 0 0 2px rgba(245, 159, 54, 0.25) !important;
+}
+
+/* ═══════════════════════════════════════════
+   11. Filter pills — Orange
+   ═══════════════════════════════════════════ */
+
+.filter-indicator-pill {
+    background: #f59f36 !important;
+    color: #ffffff !important;
+}
+
+/* ═══════════════════════════════════════════
+   12. Floating Badge — "Developed by LawnHive"
+   ═══════════════════════════════════════════ */
+
+.lawnhive-floating-badge {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    background-color: #ffffff;
+    color: #4a4a4a;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    border: 1px solid #f59f36;
+    z-index: 9999;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: transform 0.2s ease;
+}
+.lawnhive-floating-badge:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    color: #d97f1f;
+}
+.lawnhive-floating-badge .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #f59f36;
+}
+@media (max-width: 576px) {
+    .lawnhive-floating-badge {
+        bottom: 10px;
+        right: 10px;
+        padding: 4px 10px;
+        font-size: 10px;
+    }
+}

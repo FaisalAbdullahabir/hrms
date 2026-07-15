@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=62.6", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lawnhive_branding"
+version = "0.0.1"
+description = "LawnHive HR & Payroll Management System - Custom Branding"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "LawnHive", email = "info@lawnhive.com"},
+]
+license = "MIT"
+
+[tool.setuptools.packages.find]
+include = ["lawnhive_branding*"]

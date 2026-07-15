@@ -1,0 +1,80 @@
+{
+    "name": "License Status",
+    "module": "License Control",
+    "doctype": "DocType",
+    "document_type": "Document",
+    "issingle": 1,
+    "engine": "InnoDB",
+    "fields": [
+        {
+            "fieldname": "client_id",
+            "fieldtype": "Data",
+            "label": "Client ID",
+            "read_only": 1,
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "client_name",
+            "fieldtype": "Data",
+            "label": "Client Name",
+            "read_only": 1,
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "client_type",
+            "fieldtype": "Select",
+            "label": "Client Type",
+            "options": "\ngo\nbusiness",
+            "read_only": 1,
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "status",
+            "fieldtype": "Select",
+            "label": "Status",
+            "options": "\nactive\ninactive\nfree_trial\nexpired",
+            "read_only": 1,
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "plan",
+            "fieldtype": "Data",
+            "label": "Plan",
+            "read_only": 1
+        },
+        {
+            "fieldname": "activated_date",
+            "fieldtype": "Date",
+            "label": "Activated Date",
+            "read_only": 1
+        },
+        {
+            "fieldname": "expiry_date",
+            "fieldtype": "Date",
+            "label": "Expiry Date",
+            "read_only": 1
+        },
+        {
+            "fieldname": "last_check_in",
+            "fieldtype": "Datetime",
+            "label": "Last Check-in",
+            "read_only": 1
+        },
+        {
+            "fieldname": "api_url",
+            "fieldtype": "Small Text",
+            "label": "License API URL",
+            "description": "Google Apps Script Web App URL for license checking"
+        }
+    ],
+    "permissions": [
+        {
+            "role": "System Manager",
+            "read": 1,
+            "write": 1,
+            "create": 1
+        }
+    ],
+    "sort_field": "modified",
+    "sort_order": "DESC"
+}

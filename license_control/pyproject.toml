@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "license_control"
+version = "0.0.1"
+description = "License tracking and module visibility control"
+authors = [{name = "LawnHive", email = "info@lawnhive.com"}]
+license = {text = "MIT"}
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+include = ["license_control*"]

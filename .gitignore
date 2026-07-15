@@ -20,3 +20,7 @@ hrms/public/frontend
 hrms/www/hrms.html
 hrms/public/roster
 hrms/www/roster.html
+
+# Google API credentials (SENSITIVE — never commit)
+credentials.json
+*.credentials.json

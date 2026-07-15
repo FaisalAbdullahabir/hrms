@@ -1,31 +1,59 @@
-version: "3.8" # Updated version
 services:
   mariadb:
-    image: mariadb:10.8
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --skip-character-set-client-handshake
-      - --skip-innodb-read-only-compressed # Temporary fix for MariaDB 10.6
+    image: mariadb:10.6
+    restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: 123
+      MYSQL_ROOT_PASSWORD: frappe
+      MYSQL_DATABASE: frappe
+      MYSQL_USER: frappe  
+      MYSQL_PASSWORD: frappe
     volumes:
-      - mariadb-data:/var/lib/mysql
+      - mariadb_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pfrappe"]
+      timeout: 20s
+      retries: 10
 
   redis:
-    image: redis:alpine
+    image: redis:6.2-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
 
   frappe:
-    image: frappe/bench:latest
-    command: bash /workspace/init.sh
-    environment:
-      - SHELL=/bin/bash
-    working_dir: /home/frappe
-    volumes:
-      - .:/workspace
+    image: frappe/erpnext:version-15
+    restart: unless-stopped
     ports:
-      - 8000:8000
-      - 9000:9000
+      - "8000:8000"
+      - "9000:9000"
+    volumes:
+      - frappe_sites:/home/frappe/frappe-bench/sites
+      - frappe_logs:/home/frappe/frappe-bench/logs
+      - ./start.sh:/home/frappe/start.sh
+    environment:
+      - SITE_NAME=site1.local
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - REDIS_CACHE=redis://redis:6379/0
+      - REDIS_QUEUE=redis://redis:6379/1
+      - REDIS_SOCKETIO=redis://redis:6379/2
+      - SOCKETIO_PORT=9000
+      - FRAPPE_USER_PWD=admin
+      - DB_ROOT_USER=root
+      - DB_ROOT_PASSWORD=frappe
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: bash /home/frappe/start.sh
 
 volumes:
-  mariadb-data:
+  mariadb_data:
+  redis_data:
+  frappe_sites:
+  frappe_logs:
