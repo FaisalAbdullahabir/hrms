@@ -192,6 +192,72 @@
 }
 
 /* ═══════════════════════════════════════════
+   4b. Form Sidebar — Clean white, NO gradient
+   ═══════════════════════════════════════════ */
+
+.form-sidebar {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    background: #ffffff !important;
+    color: #2c2c2c !important;
+}
+.form-sidebar a {
+    color: #2c2c2c !important;
+}
+.form-sidebar a:hover {
+    color: #d97f1f !important;
+    background-color: #fdd9a8 !important;
+}
+
+.form-sidebar .sidebar-menu {
+    background-color: #fef9f3 !important;
+    background-image: none !important;
+}
+
+.form-sidebar .sidebar-menu li a,
+.document-sidebar .sidebar-menu li a {
+    color: #2c2c2c !important;
+    background-color: transparent !important;
+}
+
+.form-sidebar .sidebar-menu li a:hover,
+.document-sidebar .sidebar-menu li a:hover {
+    background-color: #fdd9a8 !important;
+    color: #d97f1f !important;
+}
+
+.form-sidebar .sidebar-menu li.active a,
+.document-sidebar .sidebar-menu li.active a {
+    background-color: #fdd9a8 !important;
+    border-left: 3px solid #f59f36 !important;
+    color: #d97f1f !important;
+}
+
+/* ═══════════════════════════════════════════
+   4c. Catch-all — Kill ALL gradient bleed
+   ═══════════════════════════════════════════ */
+
+.form-sidebar,
+.form-sidebar *,
+.document-sidebar,
+.document-sidebar *,
+.overlay-sidebar,
+.overlay-sidebar *,
+.sidebar-menu,
+.sidebar-menu *,
+.sidebar-label,
+.sidebar-label *,
+.layout-side-section,
+.layout-side-section * {
+    background-image: none !important;
+}
+
+.layout-side-section:not(.desk-sidebar):not([class*="desk-sidebar"]) {
+    background-color: #ffffff !important;
+    background-image: none !important;
+}
+
+/* ═══════════════════════════════════════════
    5. Indicators & Badges — Orange
    ═══════════════════════════════════════════ */
 

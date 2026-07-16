@@ -4,7 +4,8 @@
  * Does NOT modify any core files.
  */
 
-frappe.ready(function () {
+function _lawnhive_init() {
+    _redirect_erpnext_settings();
     _override_boot_data();
     _replace_document_title();
     _override_about_dialog();
@@ -13,13 +14,15 @@ frappe.ready(function () {
     _replace_erpnext_text();
     _hide_notification_empty();
 
-    frappe.router.on('change', function () {
-        setTimeout(function () {
-            _replace_document_title();
-            _fix_powered_by();
-            _replace_erpnext_text();
-        }, 500);
-    });
+    if (typeof frappe !== 'undefined' && frappe.router) {
+        frappe.router.on('change', function () {
+            setTimeout(function () {
+                _replace_document_title();
+                _fix_powered_by();
+                _replace_erpnext_text();
+            }, 500);
+        });
+    }
 
     var observer = new MutationObserver(function (mutations) {
         for (var i = 0; i < mutations.length; i++) {
@@ -40,7 +43,15 @@ frappe.ready(function () {
         }
     });
     observer.observe(document.body, { childList: true, subtree: true });
-});
+}
+
+if (typeof frappe !== 'undefined' && typeof frappe.ready === 'function') {
+    frappe.ready(_lawnhive_init);
+} else if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _lawnhive_init);
+} else {
+    _lawnhive_init();
+}
 
 /**
  * Override frappe.boot.apps_data — replace ERPNext/Frappe HR with LawnHive
@@ -209,4 +220,14 @@ function _hide_notification_empty() {
         });
     });
     observer.observe(document.body, { childList: true, subtree: true });
+}
+
+/**
+ * Redirect /app/erpnext-settings → /app/settings
+ */
+function _redirect_erpnext_settings() {
+    var hash = window.location.hash || '';
+    if (hash.indexOf('/app/erpnext-settings') !== -1) {
+        window.location.hash = hash.replace('/app/erpnext-settings', '/app/settings');
+    }
 }

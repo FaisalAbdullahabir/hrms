@@ -1,6 +1,6 @@
 {
     "name": "License Status",
-    "module": "License Control",
+    "module": "License",
     "doctype": "DocType",
     "document_type": "Document",
     "issingle": 1,
@@ -58,6 +58,20 @@
             "fieldname": "last_check_in",
             "fieldtype": "Datetime",
             "label": "Last Check-in",
+            "read_only": 1
+        },
+        {
+            "fieldname": "features",
+            "fieldtype": "Long Text",
+            "label": "Plan Features (JSON)",
+            "description": "Cached features object from Plan_Features tab",
+            "read_only": 1
+        },
+        {
+            "fieldname": "enabled_modules",
+            "fieldtype": "Long Text",
+            "label": "Enabled Modules (JSON)",
+            "description": "Admin-set enabled modules from Sheet, e.g. [\"HR\",\"Payroll\",\"Stock\"]",
             "read_only": 1
         },
         {
