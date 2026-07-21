@@ -75,6 +75,13 @@
             "read_only": 1
         },
         {
+            "fieldname": "last_password_sync",
+            "fieldtype": "Datetime",
+            "label": "Last Password Sync",
+            "description": "When password was last synced from Sheet",
+            "read_only": 1
+        },
+        {
             "fieldname": "api_url",
             "fieldtype": "Small Text",
             "label": "License API URL",

@@ -6,7 +6,7 @@ with open("requirements.txt") as f:
 setup(
     name="lawnhive_branding",
     version="0.0.1",
-    description="LawnHive HR & Payroll Management System - Custom Branding",
+    description="LawnHive Workspace - Custom Branding",
     author="LawnHive",
     author_email="info@lawnhive.com",
     packages=find_packages(),

@@ -1,0 +1,5 @@
+# LawnHive Workspace - Automated Daily Backup
+# Runs at 2:00 AM every day
+# Keeps last 7 backups, removes older ones
+
+0 2 * * * frappe /home/frappe/backup.sh >> /home/frappe/frappe-bench/logs/backup.log 2>&1

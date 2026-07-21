@@ -1,5 +1,5 @@
 /*
- * LawnHive HR — Brand Theme
+ * LawnHive Workspace — Brand Theme
  * Brand Color: #f59f36
  * Text on white backgrounds stays DARK.
  * Error (red) and Success (green) are NOT overridden.
@@ -97,7 +97,11 @@
     border-radius: 4px;
 }
 
-.layout-side-section {
+/* Only apply desk sidebar width overrides on desk/home pages — NOT list/form pages */
+body[data-route=""] .layout-side-section,
+body[data-route="desk"] .layout-side-section,
+body[data-route^="desk/"] .layout-side-section,
+[data-page-route="Workspaces"] .layout-side-section {
     width: 240px !important;
     max-width: 240px !important;
     flex: 0 0 240px !important;
@@ -108,15 +112,6 @@
 .layout-side-section .desk-sidebar {
     width: 100% !important;
     max-width: 100% !important;
-}
-
-/* Override Bootstrap col-lg-2 that forces percentage width */
-.layout-main .layout-side-section,
-[data-page-route="Workspaces"] .layout-side-section {
-    width: 240px !important;
-    max-width: 240px !important;
-    flex: 0 0 240px !important;
-    padding-right: 0 !important;
 }
 
 .desk-sidebar .sidebar-item-container,
@@ -234,7 +229,9 @@
 }
 
 /* ═══════════════════════════════════════════
-   4c. Catch-all — Kill ALL gradient bleed
+   4c. Catch-all — Kill gradient bleed
+   Targeted: only form/document/overlay sidebars
+   NOT layout-side-section (breaks list view sidebar)
    ═══════════════════════════════════════════ */
 
 .form-sidebar,
@@ -244,16 +241,7 @@
 .overlay-sidebar,
 .overlay-sidebar *,
 .sidebar-menu,
-.sidebar-menu *,
-.sidebar-label,
-.sidebar-label *,
-.layout-side-section,
-.layout-side-section * {
-    background-image: none !important;
-}
-
-.layout-side-section:not(.desk-sidebar):not([class*="desk-sidebar"]) {
-    background-color: #ffffff !important;
+.sidebar-menu * {
     background-image: none !important;
 }
 
@@ -395,5 +383,81 @@
         right: 10px;
         padding: 4px 10px;
         font-size: 10px;
+    }
+}
+
+/* ═══════════════════════════════════════════
+   13. Home Dashboard — Module Shortcut Cards
+   ═══════════════════════════════════════════ */
+
+#lh-dashboard {
+    padding: 16px 30px 0;
+}
+.lh-dash-header {
+    margin-bottom: 12px;
+}
+.lh-dash-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #2c2c2c;
+}
+.lh-dash-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+.lh-dash-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 120px;
+    height: 100px;
+    border-radius: 10px;
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    text-decoration: none !important;
+    transition: box-shadow 0.2s, transform 0.2s;
+    cursor: pointer;
+}
+.lh-dash-card:hover {
+    box-shadow: 0 4px 14px rgba(245, 159, 54, 0.25);
+    transform: translateY(-2px);
+    border-color: #f59f36;
+}
+.lh-dash-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #f59f36 0%, #fdd9a8 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+}
+.lh-dash-icon i {
+    font-size: 18px;
+    color: #fff !important;
+}
+.lh-dash-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #2c2c2c;
+    text-align: center;
+}
+@media (max-width: 576px) {
+    .lh-dash-card {
+        width: 100px;
+        height: 85px;
+    }
+    .lh-dash-icon {
+        width: 34px;
+        height: 34px;
+    }
+    .lh-dash-icon i {
+        font-size: 15px;
+    }
+    .lh-dash-label {
+        font-size: 11px;
     }
 }

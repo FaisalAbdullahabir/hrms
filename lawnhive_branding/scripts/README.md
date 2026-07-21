@@ -41,9 +41,9 @@ python setup_license_sheet.py
 9. Click "Deploy"
 10. Copy the Web App URL
 
-### 5. Configure LawnHive HR (Browser — Manual)
+### 5. Configure LawnHive Workspace (Browser — Manual)
 
-1. Open your LawnHive HR desk
+1. Open your LawnHive Workspace desk
 2. Go to License Status (Single DocType)
 3. Paste the Web App URL into "License API URL" field
 4. Save
@@ -70,7 +70,7 @@ bench --site site1.local migrate
 
 ## Testing
 
-1. Open LawnHive HR desk
+1. Open LawnHive Workspace desk
 2. Check sidebar — if client_type is "ngo", Manufacturing/CRM/Selling/Buying/Stock/Quality/Support should be hidden
 3. Change client_type to "business" in Google Sheet
 4. Wait 1 hour (or run `bench execute license_control.tasks.apply_module_visibility`)

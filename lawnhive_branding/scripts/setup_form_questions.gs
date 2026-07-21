@@ -1,6 +1,6 @@
 /**
  * Setup Form Questions — Google Apps Script
- * Programmatically adds all questions to the LawnHive HR Registration Form.
+ * Programmatically adds all questions to the LawnHive Workspace Registration Form.
  *
  * Usage:
  *   1. Apps Script Editor → function dropdown → setupFormQuestions → Run
@@ -26,7 +26,7 @@ function setupFormQuestions() {
   // ════════════════════════════════════════════════════════════════
   // STEP 2: Set form title
   // ════════════════════════════════════════════════════════════════
-  form.setTitle("LawnHive HR - Client Registration");
+  form.setTitle("LawnHive Workspace - Client Registration");
 
   // ════════════════════════════════════════════════════════════════
   // STEP 3: Add 6 new questions

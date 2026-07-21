@@ -1,0 +1,71 @@
+###############################################################################
+# LawnHive Workspace - Client Deployment Template
+#
+# Usage:
+#   1. Pull the image:  docker compose pull
+#   2. Start everything: docker compose up -d
+#   3. Open: http://localhost:8000
+#
+# First boot creates the site automatically (takes ~2 minutes).
+# Admin password: admin (change after first login!)
+#
+# Data is persisted in Docker volumes:
+#   - mariadb_data  (database)
+#   - redis_data    (Redis cache)
+#   - frappe_sites  (site config, uploaded files)
+#   - frappe_logs   (application logs)
+#   - frappe_backups (backup files)
+###############################################################################
+
+services:
+  mariadb:
+    image: mariadb:10.6
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-frappe}
+      MYSQL_DATABASE: frappe
+      MYSQL_USER: frappe
+      MYSQL_PASSWORD: ${DB_PASSWORD:-frappe}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-frappe}"]
+      timeout: 20s
+      retries: 10
+
+  redis:
+    image: redis:6.2-alpine
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-changeme}
+    volumes:
+      - redis_data:/data
+
+  frappe:
+    image: faisalabdullahabir/workspace:latest
+    restart: unless-stopped
+    ports:
+      - "${FRAPPE_PORT:-8000}:8000"
+    volumes:
+      - frappe_sites:/home/frappe/frappe-bench/sites
+      - frappe_logs:/home/frappe/frappe-bench/logs
+      - frappe_backups:/home/frappe/frappe-bench/sites/site1.local/private/backups
+    environment:
+      - SITE_NAME=site1.local
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-frappe}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - SOCKETIO_PORT=9000
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+volumes:
+  mariadb_data:
+  redis_data:
+  frappe_sites:
+  frappe_logs:
+  frappe_backups:

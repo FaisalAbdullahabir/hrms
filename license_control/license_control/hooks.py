@@ -1,6 +1,6 @@
 app_name = "license_control"
 app_title = "License Control"
-app_description = "License tracking and module visibility control for LawnHive HR"
+app_description = "License tracking and module visibility control for LawnHive Workspace"
 app_publisher = "LawnHive"
 app_email = "info@lawnhive.com"
 app_license = "MIT"
@@ -18,13 +18,20 @@ app_license = "MIT"
 # ──────────────────────────────────────────────────────────────────────
 
 scheduler_events = {
-    "hourly": [
-        "license_control.tasks.check_license",
+    "cron": {
+        "*/5 * * * *": [
+            "license_control.tasks.check_license",
+        ],
+    },
+    "daily": [
+        "license_control.tasks.sync_module_list_to_sheet",
     ],
 }
 
 # Login hook: enforce license status on every login
-login = "license_control.tasks.enforce_license"
+# "on_login" is the correct Frappe hook key (not "login")
+# Called via LoginManager.post_login() → run_trigger("on_login")
+on_login = "license_control.tasks.enforce_license"
 
 doc_events = {
     "Employee": {

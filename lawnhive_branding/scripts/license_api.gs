@@ -1,17 +1,31 @@
-/**
- * License Check API — Google Apps Script
- * Deploy as Web App: "Anyone" access
- *
- * GET  ?client_id=NGO001        → returns license data + features
- * POST { client_id, status }    → updates status in Clients tab
- *
- * Sheet tabs:
- *   "Clients"              — A=client_id, B=client_name, C=client_type, D=status, E=plan, F=activated_date, G=expiry_date, H=last_check_in, I=contact_email, J=login_password, K=contact_phone, L=interested_plan, M=enabled_modules
- *   "Plan_Features_HR"     — A=plan, B=max_employees, C=payroll, D=recruitment, E=performance, F=reports
- *   "Plan_Features_Retail" — A=plan, B=max_warehouses, C=max_pos_terminals, D=max_products, E=barcode_scanning, F=stock_reports, G=batch_serial_tracking, H=item_variants, I=pricing_rules, J=multi_currency, K=delivery_tracking
- */
+var MODULE_OPTIONS = [
+  "HR", "Payroll", "Accounting", "Manufacturing", "Stock", "Selling",
+  "Buying", "Quality", "CRM", "Assets", "Projects", "Support",
+  "Website", "Tools", "Education", "Drive"
+];
+
+function _getApiKey() {
+  return PropertiesService.getScriptProperties().getProperty("api_key") || "";
+}
+
+function _validateApiKey(e) {
+  var stored = _getApiKey();
+  if (!stored) return false;
+  var key = "";
+  if (e.parameter && e.parameter.api_key) key = e.parameter.api_key;
+  if (e.postData && e.postData.headers) {
+    key = key || e.postData.headers["X-API-Key"] || "";
+  }
+  return key === stored;
+}
 
 function doGet(e) {
+  if (!_validateApiKey(e)) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: "error", message: "Unauthorized" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var clientsSheet = ss.getSheetByName("Clients");
   if (!clientsSheet) {
@@ -30,6 +44,15 @@ function doGet(e) {
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === clientId) {
       clientsSheet.getRange(i + 1, 8).setValue(new Date());
+
+      var enabledModules = [];
+      for (var m = 0; m < MODULE_OPTIONS.length; m++) {
+        var cellVal = data[i][12 + m];
+        if (cellVal === true || String(cellVal).trim() === "TRUE") {
+          enabledModules.push(MODULE_OPTIONS[m]);
+        }
+      }
+
       found = {
         client_id:       String(data[i][0]),
         client_name:     String(data[i][1]),
@@ -39,7 +62,8 @@ function doGet(e) {
         activated_date:  String(data[i][5]),
         expiry_date:     String(data[i][6]),
         last_check_in:   new Date().toISOString(),
-        enabled_modules: String(data[i][12] || "").trim()
+        contact_email:   String(data[i][8] || "").trim(),
+        enabled_modules: enabledModules.join(", ")
       };
       break;
     }
@@ -90,14 +114,25 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  if (!_validateApiKey(e)) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: "error", message: "Unauthorized" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var body = JSON.parse(e.postData.contents);
+
+  if (body.action === "update_module_list") {
+    return handleUpdateModuleList(ss, body);
+  }
+
   var clientsSheet = ss.getSheetByName("Clients");
   if (!clientsSheet) {
     return ContentService
       .createTextOutput(JSON.stringify({ status: "error", message: "Clients tab not found" }))
       .setMimeType(ContentService.MimeType.JSON);
   }
-  var body = JSON.parse(e.postData.contents);
   var clientId = (body.client_id || "").trim();
   var newStatus = (body.status || "").trim();
   if (!clientId || !newStatus) {
@@ -105,6 +140,14 @@ function doPost(e) {
       .createTextOutput(JSON.stringify({ status: "error", message: "client_id and status required" }))
       .setMimeType(ContentService.MimeType.JSON);
   }
+
+  var VALID_STATUSES = ["active", "inactive", "free_trial", "pending_setup"];
+  if (VALID_STATUSES.indexOf(newStatus) === -1) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: "error", message: "Invalid status value" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   var data = clientsSheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === clientId) {
@@ -122,5 +165,34 @@ function doPost(e) {
   }
   return ContentService
     .createTextOutput(JSON.stringify({ status: "not_found" }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleUpdateModuleList(ss, body) {
+  var modules = body.modules || MODULE_OPTIONS;
+  if (modules.length === 0) {
+    modules = MODULE_OPTIONS;
+  }
+
+  var refSheet = ss.getSheetByName("Available_Modules");
+  if (refSheet) {
+    refSheet.clear();
+  } else {
+    refSheet = ss.insertSheet("Available_Modules");
+  }
+  refSheet.getRange(1, 1).setValue("Module Name");
+  refSheet.getRange(1, 1).setFontWeight("bold");
+  for (var i = 0; i < modules.length; i++) {
+    refSheet.getRange(i + 2, 1).setValue(modules[i]);
+  }
+  refSheet.setColumnWidth(1, 200);
+
+  return ContentService
+    .createTextOutput(JSON.stringify({
+      status: "updated",
+      modules_count: modules.length,
+      modules: modules,
+      reference_tab: "Available_Modules"
+    }))
     .setMimeType(ContentService.MimeType.JSON);
 }

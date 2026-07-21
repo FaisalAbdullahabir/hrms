@@ -25,7 +25,7 @@ def _setup_website_settings():
             "target": "_blank",
         })
 
-    ws.app_name = "LawnHive HR"
+    ws.app_name = "LawnHive Workspace"
     ws.app_logo = "/assets/lawnhive_branding/images/logo.png"
     ws.favicon = "/assets/lawnhive_branding/images/favicon.png"
     ws.splash_image = "/assets/lawnhive_branding/images/logo.png"
@@ -40,7 +40,7 @@ def _setup_navbar_settings():
     try:
         ns = frappe.get_single("Navbar Settings")
         ns.app_logo = "/assets/lawnhive_branding/images/logo.png"
-        ns.app_name = "LawnHive HR"
+        ns.app_name = "LawnHive Workspace"
         ns.save(ignore_permissions=True)
     except Exception:
         pass
@@ -49,7 +49,7 @@ def _setup_navbar_settings():
 def _setup_system_settings():
     try:
         ss = frappe.get_single("System Settings")
-        ss.app_name = "LawnHive HR"
+        ss.app_name = "LawnHive Workspace"
         ss.save(ignore_permissions=True)
     except Exception:
         pass
@@ -67,7 +67,7 @@ def _setup_letterhead():
             '<div style="text-align:center; padding:20px 0; border-bottom:3px solid #f59f36;">'
             '<h1 style="color:#f59f36; margin:0; font-size:24px;">LawnHive</h1>'
             '<p style="color:#666; margin:5px 0 0 0; font-size:12px;">'
-            "HR & Payroll Management System | "
+            "Workspace for Business Operations | "
             '<a href="https://lawnhive.com/" style="color:#f59f36;">www.lawnhive.com</a>'
             "</p></div>"
         ),

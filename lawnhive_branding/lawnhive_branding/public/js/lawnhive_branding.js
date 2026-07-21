@@ -60,11 +60,19 @@ function _override_boot_data() {
     if (!frappe.boot || !frappe.boot.apps_data || !frappe.boot.apps_data.apps) return;
     frappe.boot.apps_data.apps.forEach(function (app) {
         if (app.title === 'ERPNext' || app.name === 'erpnext') {
-            app.title = 'LawnHive HR';
+            app.title = 'LawnHive Workspace';
             app.logo = '/assets/lawnhive_branding/images/logo.png';
         }
         if (app.title === 'Frappe HR' || app.name === 'hrms') {
-            app.title = 'LawnHive HR';
+            app.title = 'LawnHive Workspace';
+            app.logo = '/assets/lawnhive_branding/images/logo.png';
+        }
+        if (app.title === 'Education' || app.name === 'education') {
+            app.title = 'LawnHive Learning';
+            app.logo = '/assets/lawnhive_branding/images/logo.png';
+        }
+        if (app.title === 'Frappe Drive' || app.name === 'drive') {
+            app.title = 'LawnHive Files';
             app.logo = '/assets/lawnhive_branding/images/logo.png';
         }
     });
@@ -75,11 +83,16 @@ function _override_boot_data() {
  */
 function _replace_document_title() {
     var title = document.title || '';
-    if (title.indexOf('ERPNext') !== -1 || title.indexOf('Frappe') !== -1) {
+    if (title.indexOf('ERPNext') !== -1 || title.indexOf('Frappe') !== -1 ||
+        title.indexOf('Education') !== -1 || title.indexOf('Drive') !== -1) {
         document.title = title
-            .replace(/ERPNext/g, 'LawnHive HR')
-            .replace(/Frappe Framework/g, 'LawnHive HR')
-            .replace(/Frappe/g, 'LawnHive HR');
+            .replace(/ERPNext/g, 'LawnHive Workspace')
+            .replace(/Frappe Framework/g, 'LawnHive Workspace')
+            .replace(/Frappe HR/g, 'LawnHive Workspace')
+            .replace(/Frappe Drive/g, 'LawnHive Files')
+            .replace(/Frappe/g, 'LawnHive Workspace')
+            .replace(/Education/g, 'LawnHive Learning')
+            .replace(/Drive/g, 'LawnHive Files');
     }
 }
 
@@ -137,18 +150,18 @@ function _override_about_dialog() {
             callback: function (r) {
                 if (r && r.message) {
                     new frappe.ui.Dialog({
-                        title: __('About LawnHive HR'),
+                        title: __('About LawnHive Workspace'),
                         indicator: 'orange',
                         size: 'small',
                         static: true,
                         body:
                             '<div style="text-align:center;padding:20px;">' +
-                            '<h3 style="color:#f59f36;margin-bottom:5px;">LawnHive HR</h3>' +
+                            '<h3 style="color:#f59f36;margin-bottom:5px;">LawnHive Workspace</h3>' +
                             '<p style="color:#666;margin-bottom:15px;">Version: ' + (r.message.version || '1.0.0') + '</p>' +
                             '<p style="margin-bottom:5px;"><strong>Publisher:</strong> LawnHive</p>' +
                             '<p style="margin-bottom:5px;"><strong>Website:</strong> <a href="https://lawnhive.com/" target="_blank" style="color:#f59f36;">lawnhive.com</a></p>' +
                             '<hr>' +
-                            '<p style="color:#999;font-size:12px;">HR & Payroll Management System</p>' +
+                            '<p style="color:#999;font-size:12px;">Workspace for Business Operations</p>' +
                             '</div>',
                     }).show();
                 }
@@ -184,14 +197,18 @@ function _replace_erpnext_text() {
     selectors.forEach(function (sel) {
         document.querySelectorAll(sel).forEach(function (el) {
             var text = el.textContent || '';
-            if (text.indexOf('ERPNext') === -1 && text.indexOf('Frappe') === -1) return;
+            var needsReplace = text.indexOf('ERPNext') !== -1 || text.indexOf('Frappe') !== -1 ||
+                               text.indexOf('Education') !== -1;
+            if (!needsReplace) return;
             el.textContent = text
                 .replace(/ERPNext Settings/g, 'Settings')
                 .replace(/ERPNext Integrations/g, 'Integrations')
-                .replace(/ERPNext/g, 'LawnHive HR')
-                .replace(/Frappe HR/g, 'LawnHive HR')
-                .replace(/Frappe Framework/g, 'LawnHive HR')
-                .replace(/Frappe/g, 'LawnHive HR');
+                .replace(/ERPNext/g, 'LawnHive Workspace')
+                .replace(/Frappe HR/g, 'LawnHive Workspace')
+                .replace(/Frappe Framework/g, 'LawnHive Workspace')
+                .replace(/Frappe Drive/g, 'LawnHive Files')
+                .replace(/Frappe/g, 'LawnHive Workspace')
+                .replace(/Education/g, 'LawnHive Learning');
         });
     });
 

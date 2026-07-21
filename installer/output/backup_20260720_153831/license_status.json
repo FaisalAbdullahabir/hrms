@@ -1,0 +1,9 @@
+﻿docker : Traceback (most recent call last):
+At line:16 char:18
++ $licenseFields = docker exec docker-frappe-1 python3 -c "
++                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "<string>", line 2, in <module>
+ModuleNotFoundError: No module named 'frappe'

@@ -3,29 +3,26 @@ services:
     image: mariadb:10.6
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: frappe
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-frappe}
       MYSQL_DATABASE: frappe
-      MYSQL_USER: frappe  
-      MYSQL_PASSWORD: frappe
+      MYSQL_USER: frappe
+      MYSQL_PASSWORD: ${DB_PASSWORD:-frappe}
     volumes:
       - mariadb_data:/var/lib/mysql
-    ports:
-      - "3306:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pfrappe"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-frappe}"]
       timeout: 20s
       retries: 10
 
   redis:
     image: redis:6.2-alpine
     restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-lhRedis@2026}
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
 
   frappe:
-    image: frappe/erpnext:version-15
+    image: faisalabdullahabir/workspace:latest
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -33,27 +30,30 @@ services:
     volumes:
       - frappe_sites:/home/frappe/frappe-bench/sites
       - frappe_logs:/home/frappe/frappe-bench/logs
-      - ./start.sh:/home/frappe/start.sh
+      - frappe_backups:/home/frappe/frappe-bench/sites/site1.local/private/backups
     environment:
+      - HOME=/home/frappe
       - SITE_NAME=site1.local
       - DB_HOST=mariadb
       - DB_PORT=3306
-      - REDIS_CACHE=redis://redis:6379/0
-      - REDIS_QUEUE=redis://redis:6379/1
-      - REDIS_SOCKETIO=redis://redis:6379/2
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-frappe}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-lhRedis@2026}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
       - SOCKETIO_PORT=9000
-      - FRAPPE_USER_PWD=admin
+      - FRAPPE_USER_PWD=${ADMIN_PASSWORD:-admin}
       - DB_ROOT_USER=root
-      - DB_ROOT_PASSWORD=frappe
+      - REDIS_CACHE=redis://:${REDIS_PASSWORD:-lhRedis@2026}@redis:6379/0
+      - REDIS_QUEUE=redis://:${REDIS_PASSWORD:-lhRedis@2026}@redis:6379/1
+      - REDIS_SOCKETIO=redis://:${REDIS_PASSWORD:-lhRedis@2026}@redis:6379/2
     depends_on:
       mariadb:
         condition: service_healthy
       redis:
         condition: service_started
-    command: bash /home/frappe/start.sh
 
 volumes:
   mariadb_data:
   redis_data:
   frappe_sites:
   frappe_logs:
+  frappe_backups:

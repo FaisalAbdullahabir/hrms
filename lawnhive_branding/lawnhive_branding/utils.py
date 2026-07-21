@@ -5,11 +5,11 @@ import frappe
 def get_about_info():
     """Return LawnHive info for the About dialog."""
     return {
-        "app_name": "LawnHive HR",
+        "app_name": "LawnHive Workspace",
         "version": frappe.get_version(),
         "publisher": "LawnHive",
         "website": "https://lawnhive.com/",
-        "description": "HR & Payroll Management System",
+        "description": "Workspace for Business Operations",
     }
 
 

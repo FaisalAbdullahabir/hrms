@@ -1,0 +1,9 @@
+.git
+.env
+.env.example
+__pycache__
+*.pyc
+*.egg-info
+node_modules
+README.md
+docker-compose.client.yml

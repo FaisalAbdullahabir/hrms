@@ -1,0 +1,56 @@
+=====================================================
+  LawnHive Workspace - Offline Installer
+=====================================================
+
+WHAT'S ON THIS PENDRIVE
+------------------------
+  LawnHiveWorkspaceSetup.exe   - The installer (run this)
+  lawnhive-image\              - Setup data folder (don't modify)
+
+
+HOW TO INSTALL
+--------------
+  1. Insert this pendrive into the target computer
+  2. Open the pendrive folder
+  3. Double-click "LawnHiveWorkspaceSetup.exe"
+  4. Follow the on-screen instructions
+  5. Enter your Client ID when prompted
+  6. Wait for setup to complete (5-15 minutes offline)
+
+  That's it! The application opens automatically in your browser.
+
+
+WHAT HAPPENS DURING INSTALL
+-----------------------------
+  - Docker Desktop is installed automatically (if not already)
+  - System components are configured
+  - Workspace is started and ready to use
+
+
+REQUIREMENTS
+-------------
+  - Windows 10 or 11
+  - At least 8 GB RAM
+  - At least 20 GB free disk space
+  - Admin rights on the computer
+
+
+AFTER INSTALL
+--------------
+  - Desktop shortcut: "LawnHive Workspace"
+  - Start Menu: "LawnHive Workspace" folder
+  - Browser opens to: http://localhost:8000
+  - Login with your provided credentials
+
+
+TROUBLESHOOTING
+----------------
+  - If install fails: ensure the pendrive is not write-protected
+  - If Windows blocks the .exe: click "More info" → "Run anyway"
+  - If Docker won't start: restart computer and try again
+  - Log file: C:\Program Files\LawnHive Workspace\install.log
+
+
+CONTACT
+--------
+  LawnHive Support: https://lawnhive.com

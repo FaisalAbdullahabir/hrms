@@ -1,0 +1,13 @@
+{
+  "client_id": "NGO001",
+  "db_host": "mariadb",
+  "db_name": "_b533f5fdd65aaf8c",
+  "db_password": "MGadGl5jsVjK2dhN",
+  "db_port": 3306,
+  "db_type": "mariadb",
+  "developer_mode": 0,
+  "license_api_key": "FbLSBOggIpyLCudSBhiFCOrxG93m3TPIqvFS5u2mH9s",
+  "redis_cache": "redis://:lhRedis@2026@redis:6379/0",
+  "redis_queue": "redis://:lhRedis@2026@redis:6379/1",
+  "redis_socketio": "redis://:lhRedis@2026@redis:6379/2"
+}

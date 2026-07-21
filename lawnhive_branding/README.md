@@ -1,6 +1,6 @@
 # LawnHive Branding
 
-Custom branding app for LawnHive HR — replaces all Frappe/ERPNext references with LawnHive identity.
+Custom branding app for LawnHive Workspace — replaces all Frappe/ERPNext references with LawnHive identity.
 
 ## Installation
 
@@ -20,7 +20,7 @@ Replace the placeholder images with your real logo:
 
 ## What It Does
 
-- Replaces Frappe/ERPNext branding with "LawnHive HR"
+- Replaces Frappe/ERPNext branding with "LawnHive Workspace"
 - Applies brand color #f59f36 across all UI elements
 - Overrides About dialog and Help menu
 - Sets up default letterhead and footer with auto-updating year
