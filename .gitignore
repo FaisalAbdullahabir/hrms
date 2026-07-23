@@ -24,3 +24,6 @@ hrms/www/roster.html
 # Google API credentials (SENSITIVE — never commit)
 credentials.json
 *.credentials.json
+
+# ERPNext (separate repo, installed via bench)
+erpnext/
