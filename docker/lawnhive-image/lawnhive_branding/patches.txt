@@ -1,2 +1,1 @@
-v1.0.1
-lawnhive_branding.patches.v1_0.add_contact_billing_column
+lawnhive_branding.patches.rename_erpnext_workspaces

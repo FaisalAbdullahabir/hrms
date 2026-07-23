@@ -109,6 +109,7 @@ jinja = {
 # ── Patches ──
 patches = [
     "lawnhive_branding.patches.v1_0.add_contact_billing_column",
+    "lawnhive_branding.patches.v1_0.fix_student_mandatory_fields",
 ]
 
 # ── Doc Events (Education UX fixes) ──
@@ -120,3 +121,8 @@ doc_events = {
         "before_insert": "lawnhive_branding.education_fixes.student_group_before_insert",
     },
 }
+
+# ── Education Health Module ──
+app_include_js = app_include_js + [
+    "/assets/lawnhive_branding/js/student_health_record.js",
+]

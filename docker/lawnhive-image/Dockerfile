@@ -51,6 +51,9 @@ RUN sed -i 's/^app_title = "ERPNext"/app_title = "LawnHive Next"/' \
     && sed -i 's/^app_title = "Drive"/app_title = "LawnHive Files"/' \
         /home/frappe/frappe-bench/apps/drive/drive/hooks.py
 
+# ── Step 4b: Patch Student DocType mandatory flags ───────────────────
+RUN python3 -c "import json; p='/home/frappe/frappe-bench/apps/education/education/education/doctype/student/student.json'; d=json.load(open(p)); [f.update({'reqd':0}) if f.get('fieldname')=='student_email_id' else f.update({'reqd':1}) if f.get('fieldname')=='student_mobile_number' else None for f in d.get('fields',[])]; json.dump(d,open(p,'w'),indent=2)"
+
 # ── Step 5: Write apps.txt ──────────────────────────────────────────
 RUN echo "frappe"      >  /home/frappe/frappe-bench/sites/apps.txt \
     && echo "erpnext"      >> /home/frappe/frappe-bench/sites/apps.txt \

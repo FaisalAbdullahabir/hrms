@@ -109,6 +109,9 @@ if os.path.exists(site_cfg_path):
     echo 'Applying LawnHive branding...'
     bench --site "$SITE_NAME" execute lawnhive_branding.setup.after_install 2>&1 || true
 
+    echo 'Setting up Student Health Record feature...'
+    bench --site "$SITE_NAME" execute lawnhive_branding.education_health.setup.setup_all 2>&1 || true
+
     echo 'Setting default workspace...'
     bench --site "$SITE_NAME" execute "
 import frappe
@@ -161,6 +164,14 @@ fi
 
 # ── Clear website cache only (keep desk asset hashes intact) ─────
 bench --site "$SITE_NAME" clear-website-cache 2>&1 || true
+
+# ── Ensure Education sub-workspaces exist (idempotent) ──────────
+echo 'Ensuring Education sub-workspaces...'
+bench --site "$SITE_NAME" execute lawnhive_branding.education_health.workspace_setup.setup_education_workspaces 2>&1 || true
+
+# ── Ensure Student mandatory fields are correct (idempotent) ───
+echo 'Ensuring Student field settings...'
+bench --site "$SITE_NAME" execute lawnhive_branding.patches.v1_0.fix_student_mandatory_fields.execute 2>&1 || true
 
 # ── Start cron service (must run as root) ────────────────────────
 echo 'Starting cron service...'

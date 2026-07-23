@@ -1,0 +1,111 @@
+# LawnHive Workspace - Office Network Setup Guide
+
+## What You Need
+
+| # | File | For | Size |
+|---|---|---|---|
+| 1 | `LawnHiveWorkspaceSetup.exe` | The main computer (Server PC) | 2.26 MB |
+| 2 | `LawnHiveWorkspaceClient.exe` | Employee computers | 2.26 MB each |
+
+---
+
+## Step 1: Set Up the Main Computer (Server PC)
+
+This is the computer that will run the LawnHive system. All employee
+computers will connect to it.
+
+1. Copy `LawnHiveWorkspaceSetup.exe` to this computer
+2. Double-click to run it
+3. Enter your **Client ID** when asked (given to you by LawnHive)
+4. Wait 15-30 minutes — go have tea!
+5. When done, a message will show your **Network Address**, like:
+   ```
+   http://192.168.1.100:8000
+   ```
+6. **Write this down** — employees will need it
+
+**IMPORTANT:** This computer must stay turned on all the time. If it's
+off, nobody can access LawnHive.
+
+---
+
+## Step 2: Set Up Employee Computers
+
+Each employee computer just needs a shortcut to connect to the server.
+
+1. Copy `LawnHiveWorkspaceClient.exe` to the employee computer
+2. Double-click to run it
+3. Wait about 10 seconds — it will search for the server
+4. **If found:** It will show the server address. Click "Connect"
+5. **If not found:** Type the address you wrote down in Step 1
+   (just the numbers, like `192.168.1.100`)
+6. A "LawnHive Workspace" shortcut will appear on the desktop
+7. Double-click it to open LawnHive — done!
+
+---
+
+## Step 3: Prevent Problems Later (Do This Once)
+
+The main computer's address might change after a power cut or router
+restart. This would break all employee connections. To prevent this,
+follow the guide in: `IP-Change-Prevention-Guide.txt`
+
+---
+
+## How to Test Everything Works
+
+### Quick Test (2 minutes):
+1. On an employee computer, double-click the "LawnHive Workspace" shortcut
+2. The login page should open in your web browser
+3. Log in with your username and password
+
+### Full Test (5 minutes):
+1. Set up 2-3 employee computers using Step 2 above
+2. Have each one open LawnHive via the shortcut
+3. Log in as different people on each computer
+4. Make a change on one computer — check if it appears on the others
+   (it should, since they all share the same system)
+
+---
+
+## If Something Goes Wrong
+
+### "Server not found" or can't connect:
+- Is the main computer turned on?
+- Are both computers connected to the same Wi-Fi or network cable?
+- Is the address correct? Check what's shown on the main computer's screen
+
+### The shortcut stopped working:
+- The main computer's address may have changed
+- Run the employee installer again — it will find the server automatically
+- Or see `IP-Change-Prevention-Guide.txt` to stop this from happening
+
+### You see "Could not connect":
+- Is the main computer on?
+- Are you on the same network?
+- Double-check the address you typed
+- Call LawnHive support if you need help
+
+---
+
+## Need Help?
+
+If any of these steps feel too technical, don't worry! Contact us:
+
+- **Phone:** [Your support number]
+- **Email:** [Your support email]
+- **We can help remotely:** Just give us a call and we can guide you
+  through it, or connect to your computer to set it up for you.
+
+---
+
+## What Each Computer Needs
+
+| | Main Computer (Server) | Employee Computer |
+|---|---|---|
+| Runs the system? | Yes | No (just connects) |
+| Needs internet? | Yes (for first setup) | No |
+| Must stay turned on? | Yes | No |
+| Installer file | LawnHiveWorkspaceSetup.exe | LawnHiveWorkspaceClient.exe |
+| How to open | http://localhost:8000 | Double-click desktop shortcut |
+| How to update | Run "Update LawnHive" in Start Menu | Re-run the employee installer |

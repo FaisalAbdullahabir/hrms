@@ -1,0 +1,40 @@
+{
+ "name": "Medication Item",
+ "module": "Education",
+ "doctype": "DocType",
+ "istable": 1,
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "fields": [
+  {
+   "fieldname": "medicine_name",
+   "fieldtype": "Data",
+   "label": "Medicine Name",
+   "in_list_view": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "dosage",
+   "fieldtype": "Data",
+   "label": "Dosage",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date"
+  },
+  {
+   "fieldname": "prescribed_by",
+   "fieldtype": "Data",
+   "label": "Prescribed By"
+  }
+ ],
+ "permissions": []
+}

@@ -1,0 +1,152 @@
+{
+ "name": "Student Health Record",
+ "module": "Education",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "autoname": "format:SHR-{student}-{####}",
+ "title_field": "student_name",
+ "search_fields": "student,student_name",
+ "fields": [
+  {
+   "fieldname": "student",
+   "fieldtype": "Link",
+   "label": "Student",
+   "options": "Student",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "student_name",
+   "fieldtype": "Data",
+   "label": "Student Name",
+   "fetch_from": "student.student_name",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Section Break",
+   "label": "Basic Information"
+  },
+  {
+   "fieldname": "date_of_record",
+   "fieldtype": "Date",
+   "label": "Date of Record",
+   "default": "Today",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "height_cm",
+   "fieldtype": "Float",
+   "label": "Height (cm)",
+   "reqd": 1,
+   "in_list_view": 1,
+   "onchange": "calculate_bmi"
+  },
+  {
+   "fieldname": "weight_kg",
+   "fieldtype": "Float",
+   "label": "Weight (kg)",
+   "reqd": 1,
+   "in_list_view": 1,
+   "onchange": "calculate_bmi"
+  },
+  {
+   "fieldname": "bmi",
+   "fieldtype": "Float",
+   "label": "BMI",
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "Auto-calculated: weight / (height in meters)^2"
+  },
+  {
+   "fieldname": "column_break_health",
+   "fieldtype": "Section Break",
+   "label": "Health Checkup History"
+  },
+  {
+   "fieldname": "health_checkup_history",
+   "fieldtype": "Table",
+   "label": "Health Checkup History",
+   "options": "Health Checkup Item"
+  },
+  {
+   "fieldname": "section_break_special",
+   "fieldtype": "Section Break",
+   "label": "Special Needs & Emergency"
+  },
+  {
+   "fieldname": "special_needs",
+   "fieldtype": "Check",
+   "label": "Has Special Needs"
+  },
+  {
+   "fieldname": "special_needs_description",
+   "fieldtype": "Long Text",
+   "label": "Special Needs Description",
+   "depends_on": "eval:doc.special_needs"
+  },
+  {
+   "fieldname": "emergency_medical_instructions",
+   "fieldtype": "Long Text",
+   "label": "Emergency Medical Instructions",
+   "description": "Allergies, blood group, emergency contact, etc."
+  },
+  {
+   "fieldname": "column_break_medication",
+   "fieldtype": "Section Break",
+   "label": "Medication Record"
+  },
+  {
+   "fieldname": "medication_record",
+   "fieldtype": "Table",
+   "label": "Medication Record",
+   "options": "Medication Item"
+  },
+  {
+   "fieldname": "section_break_notes",
+   "fieldtype": "Section Break",
+   "label": "Nurse/Doctor Notes"
+  },
+  {
+   "fieldname": "nurse_doctor_notes",
+   "fieldtype": "Table",
+   "label": "Nurse/Doctor Notes",
+   "options": "Nurse Doctor Note"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "export": 1
+  },
+  {
+   "role": "Academics User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "email": 1
+  },
+  {
+   "role": "School Nurse",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "export": 1
+  }
+ ]
+}

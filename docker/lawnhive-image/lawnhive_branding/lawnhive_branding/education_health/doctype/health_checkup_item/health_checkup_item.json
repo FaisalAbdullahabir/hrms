@@ -1,0 +1,30 @@
+{
+ "name": "Health Checkup Item",
+ "module": "Education",
+ "doctype": "DocType",
+ "istable": 1,
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "fields": [
+  {
+   "fieldname": "checkup_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "in_list_view": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "findings",
+   "fieldtype": "Small Text",
+   "label": "Findings",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "examiner_name",
+   "fieldtype": "Data",
+   "label": "Examiner Name",
+   "in_list_view": 1
+  }
+ ],
+ "permissions": []
+}

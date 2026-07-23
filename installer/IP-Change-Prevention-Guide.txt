@@ -1,0 +1,109 @@
+# How to Stop the Main Computer's Address from Changing
+
+## Why This Matters
+
+Every computer on your network has a number address (like a phone
+number). If this number changes, employee computers won't be able to
+find the main computer anymore. This guide shows you how to prevent that.
+
+---
+
+## The Easy Way: Tell Your Router to Always Give the Same Number
+
+Your router (the box that gives internet to your office) decides which
+number each computer gets. You can tell it: "Always give this number
+to the main computer."
+
+### Here's how:
+
+**Step 1: Find the main computer's current number**
+- On the main computer, after LawnHive is installed, the number is
+  shown on screen (like `192.168.1.100`)
+- Write this number down
+
+**Step 2: Find the main computer's "name tag"**
+- On the main computer, open the black box called "Command Prompt"
+  (click Start, type "cmd", press Enter)
+- Type this and press Enter: `getmac /v /fo list`
+- Look for "Physical Address" — it looks like: `A4-B1-C2-D3-E4-F5`
+- Write this down too
+
+**Step 3: Open your router's settings**
+- On any computer, open your web browser
+- Type one of these addresses in the address bar (not a search engine):
+  - `192.168.1.1` (most common)
+  - `192.168.0.1`
+- You'll see a login page
+- The username and password are usually on a sticker on the router
+  (common ones: admin/admin, admin/password, or check the sticker)
+
+**Step 4: Find the "Address Reservation" setting**
+- Every router is different. Look for one of these names:
+  - "Address Reservation"
+  - "DHCP Reservation"
+  - "Static IP"
+  - "IP-MAC Binding"
+- It's usually under "Advanced Settings" or "Network Settings"
+
+**Step 5: Add the main computer**
+- Click "Add" or "New"
+- Paste the "name tag" (MAC address) you wrote in Step 2
+- Enter the number (IP address) you wrote in Step 1
+- Save it
+
+**Step 6: Restart the main computer**
+- Turn it off and on again
+- After restart, it will always get the same number
+
+**That's it!** The main computer will now always have the same address,
+even after power cuts or router restarts.
+
+---
+
+## The Manual Way (If You Can't Access the Router)
+
+If you can't log into the router, you can set the number directly on
+the main computer:
+
+1. Open **Settings** (click Start → gear icon)
+2. Go to **Network & Internet**
+3. Click **Ethernet** (or **Wi-Fi** if using wireless)
+4. Click **Edit** next to "IP assignment"
+5. Change from "Automatic" to "Manual"
+6. Enter these numbers:
+   - IP address: the number you wrote down (like `192.168.1.100`)
+   - Subnet mask: `255.255.255.0`
+   - Gateway: your router's address (like `192.168.1.1`)
+   - DNS: `8.8.8.8` and `8.8.4.4`
+7. Save
+
+**Be careful:** If you enter wrong numbers, the internet may stop
+working. Write down the current numbers first so you can undo it.
+
+---
+
+## If the Address Already Changed
+
+Don't worry! Here's what to do:
+
+1. Go to the main computer
+2. Open Command Prompt (click Start, type "cmd", press Enter)
+3. Type: `ipconfig`
+4. Look for "IPv4 Address" — that's the new number
+5. On each employee computer, run the employee installer again
+   (it will find the server automatically)
+   OR
+   Right-click the "LawnHive Workspace" shortcut on the desktop,
+   and update the address to the new number
+
+---
+
+## Need Help?
+
+**If any of this sounds too complicated, just call us!** We can:
+- Guide you through it over the phone
+- Connect to your computer remotely and set it up for you
+- Send someone to your office to help
+
+We want you to spend your time using LawnHive, not fighting with
+computer settings!
