@@ -105,13 +105,96 @@ function Test-Internet {
     return $false
 }
 
+function Find-DockerDesktopPath {
+    # Try all known methods to find Docker Desktop.exe
+    $candidates = @(
+        "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
+        "$env:LOCALAPPDATA\Docker\app\version\bin\Docker Desktop.exe",
+        "C:\Program Files\Docker\Docker\Docker Desktop.exe",
+        "D:\Program Files\Docker\Docker\Docker Desktop.exe"
+    )
+
+    # Method 1: Registry (most reliable for non-standard installs)
+    try {
+        $regKeys = @(
+            "HKLM:\SOFTWARE\Docker Inc.\Docker Desktop",
+            "HKLM:\SOFTWARE\WOW6432Node\Docker Inc.\Docker Desktop",
+            "HKCU:\SOFTWARE\Docker Inc.\Docker Desktop"
+        )
+        foreach ($rk in $regKeys) {
+            try {
+                $installPath = Get-ItemProperty -Path $rk -Name "InstallPath" -ErrorAction SilentlyContinue
+                if ($installPath -and $installPath.InstallPath) {
+                    $exePath = Join-Path $installPath.InstallPath "Docker Desktop.exe"
+                    if (Test-Path $exePath) {
+                        Write-Log "Docker Desktop found via registry ($rk): $exePath"
+                        return $exePath
+                    }
+                }
+                $exePath2 = Get-ItemProperty -Path $rk -Name "ExecutablePath" -ErrorAction SilentlyContinue
+                if ($exePath2 -and $exePath2.ExecutablePath -and (Test-Path $exePath2.ExecutablePath)) {
+                    Write-Log "Docker Desktop found via registry ExecutablePath ($rk): $($exePath2.ExecutablePath)"
+                    return $exePath2.ExecutablePath
+                }
+            } catch {}
+        }
+    } catch {}
+
+    # Method 2: Known paths
+    foreach ($p in $candidates) {
+        if (Test-Path $p) {
+            Write-Log "Docker Desktop found at known path: $p"
+            return $p
+        }
+    }
+
+    # Method 3: where.exe (searches PATH)
+    try {
+        $w = where.exe "Docker Desktop.exe" 2>&1 | Out-String
+        $first = ($w -split "`n" | Where-Object { $_.Trim() -ne "" } | Select-Object -First 1).Trim()
+        if ($first -and (Test-Path $first)) {
+            Write-Log "Docker Desktop found via where.exe: $first"
+            return $first
+        }
+    } catch {}
+
+    # Method 4: Get-Command (PowerShell PATH search)
+    try {
+        $cmd = Get-Command "Docker Desktop.exe" -ErrorAction SilentlyContinue
+        if ($cmd -and $cmd.Source -and (Test-Path $cmd.Source)) {
+            Write-Log "Docker Desktop found via Get-Command: $($cmd.Source)"
+            return $cmd.Source
+        }
+    } catch {}
+
+    Write-Log "Docker Desktop.exe NOT FOUND by any method"
+    return $null
+}
+
 function Test-DockerInstalled {
+    # Check 1: Known paths
     $paths = @(
         "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
         "$env:LOCALAPPDATA\Docker\app\version\bin\Docker Desktop.exe"
     )
     foreach ($p in $paths) {
-        if (Test-Path $p) { return $true }
+        if (Test-Path $p) {
+            Write-Log "Docker Desktop found at: $p"
+            return $true
+        }
+    }
+    # Check 2: docker CLI (installed but exe at non-standard location)
+    try {
+        $ver = docker --version 2>&1 | Out-String
+        if ($ver -match "Docker version") {
+            Write-Log "Docker found via CLI: $($ver.Trim())"
+            return $true
+        }
+    } catch {}
+    # Check 3: Registry
+    $regPath = Find-DockerDesktopPath
+    if ($regPath) {
+        return $true
     }
     return $false
 }
@@ -212,29 +295,169 @@ function Test-Virtualization {
 }
 
 # =====================================================================
-# START DOCKER DESKTOP MANUALLY (if not running)
+# START DOCKER DAEMON (service first, then GUI app as fallback)
 # =====================================================================
 function Start-DockerDesktop {
-    $dockerPaths = @(
-        "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
-        "$env:LOCALAPPDATA\Docker\app\version\bin\Docker Desktop.exe"
-    )
-    
-    foreach ($path in $dockerPaths) {
-        if (Test-Path $path) {
-            Write-Log "Starting Docker Desktop from: $path"
-            try {
-                Start-Process -FilePath $path -WindowStyle Minimized
-                Write-Log "Docker Desktop start command sent."
-                return $true
-            } catch {
-                Write-Log "Failed to start Docker Desktop: $_"
+    # === Strategy 1: Start the Windows Service directly (no path needed) ===
+    $svcNames = @("com.docker.service", "Docker Desktop Service", "docker")
+    foreach ($svc in $svcNames) {
+        try {
+            $service = Get-Service -Name $svc -ErrorAction SilentlyContinue
+            if ($service) {
+                Write-Log "Found Docker service: $svc (Status: $($service.Status))"
+                if ($service.Status -ne "Running") {
+                    Write-Log "Starting Docker service: $svc..."
+                    Start-Service -Name $svc -ErrorAction Stop
+                    Write-Log "Docker service $svc started successfully"
+                    return $true
+                } else {
+                    Write-Log "Docker service $svc is already running"
+                    return $true
+                }
             }
+        } catch {
+            Write-Log "Could not start service $svc`: $($_.Exception.Message)"
         }
     }
-    
-    Write-Log "Docker Desktop executable not found."
+
+    # === Strategy 2: Find Docker Desktop.exe via robust detection and launch GUI ===
+    $exePath = Find-DockerDesktopPath
+    if ($exePath) {
+        Write-Log "Starting Docker Desktop GUI from: $exePath"
+        try {
+            Start-Process -FilePath $exePath -WindowStyle Minimized
+            Write-Log "Docker Desktop GUI start command sent."
+            return $true
+        } catch {
+            Write-Log "Failed to start Docker Desktop GUI: $($_.Exception.Message)"
+        }
+    }
+
+    # === Strategy 3: Start-Process "Docker Desktop" (relies on Windows PATH/app registration) ===
+    try {
+        Write-Log "Attempting Start-Process 'Docker Desktop' (app registration)..."
+        Start-Process -FilePath "Docker Desktop" -WindowStyle Minimized -ErrorAction Stop
+        Write-Log "Docker Desktop launched via app registration"
+        return $true
+    } catch {
+        Write-Log "App registration launch failed: $($_.Exception.Message)"
+    }
+
+    Write-Log "All Docker start methods failed"
     return $false
+}
+
+# =====================================================================
+# SAVE RESUME STATE (for post-restart auto-resume)
+# =====================================================================
+function Save-ResumeState {
+    # 1. HKCU registry (resume flag)
+    try {
+        $regPath = "HKCU:\SOFTWARE\LawnHive Workspace\Installer"
+        New-Item -Path $regPath -Force | Out-Null
+        Set-ItemProperty -Path $regPath -Name "ResumeInstall" -Value "1"
+        Set-ItemProperty -Path $regPath -Name "InstallDir" -Value $InstallDir
+        Set-ItemProperty -Path $regPath -Name "ClientId" -Value $ClientId
+        Set-ItemProperty -Path $regPath -Name "SourceDir" -Value $SourceDir
+        Write-Log "RESUME: HKCU registry state saved"
+    } catch {
+        Write-Log "RESUME: WARNING - HKCU registry save FAILED: $($_.Exception.Message)"
+    }
+
+    $scriptPath = $PSCommandPath
+    if (-not $scriptPath) { $scriptPath = Join-Path $InstallDir "install.ps1" }
+    Write-Log "RESUME: Script path resolved as: $scriptPath"
+    $resumeCmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -ClientId `"$ClientId`" -InstallDir `"$InstallDir`" -SourceDir `"$SourceDir`""
+
+    # 2. HKCU RunOnce (runs after current user logs in)
+    try {
+        $hkcuRunOnce = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
+        New-Item -Path $hkcuRunOnce -Force | Out-Null
+        Set-ItemProperty -Path $hkcuRunOnce -Name "LawnHiveResume" -Value $resumeCmd
+        Write-Log "RESUME: HKCU RunOnce WRITTEN to: $hkcuRunOnce"
+    } catch {
+        Write-Log "RESUME: WARNING - HKCU RunOnce FAILED: $($_.Exception.Message)"
+    }
+
+    # 3. HKLM RunOnce (backup, may fail silently without admin)
+    try {
+        $hklmRunOnce = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
+        Set-ItemProperty -Path $hklmRunOnce -Name "LawnHiveResume" -Value $resumeCmd -ErrorAction Stop
+        Write-Log "RESUME: HKLM RunOnce WRITTEN to: $hklmRunOnce"
+    } catch {
+        Write-Log "RESUME: WARNING - HKLM RunOnce FAILED: $($_.Exception.Message)"
+    }
+
+    # 4. Desktop shortcut (most reliable fallback)
+    try {
+        $desktopPath = [Environment]::GetFolderPath("Desktop")
+        $lnk = Join-Path $desktopPath "Resume LawnHive Installation.lnk"
+        $shell = New-Object -ComObject WScript.Shell
+        $sc = $shell.CreateShortcut($lnk)
+        $sc.TargetPath = "powershell.exe"
+        $sc.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -ClientId `"$ClientId`" -InstallDir `"$InstallDir`" -SourceDir `"$SourceDir`""
+        $sc.WorkingDirectory = $InstallDir
+        $sc.Description = "Resume LawnHive Workspace installation after restart"
+        $sc.IconLocation = "$InstallDir\lawnhive.ico,0"
+        $sc.Save()
+        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) | Out-Null
+        $verifySc = New-Object -ComObject WScript.Shell
+        $verifyTarget = $verifySc.CreateShortcut($lnk)
+        if ($verifyTarget.Arguments -match '-File\s+""') {
+            Write-Log "RESUME: WARNING - Resume shortcut created with empty script path! Target: $($verifyTarget.Arguments)"
+        } else {
+            Write-Log "RESUME: Desktop shortcut CREATED: $lnk"
+        }
+        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($verifySc) | Out-Null
+    } catch {
+        Write-Log "RESUME: WARNING - Desktop shortcut FAILED: $($_.Exception.Message)"
+    }
+
+    # 5. Start Menu shortcut
+    try {
+        $startMenuPath = [Environment]::GetFolderPath("StartMenu")
+        $programsPath = Join-Path $startMenuPath "Programs\LawnHive Workspace"
+        if (-not (Test-Path $programsPath)) {
+            New-Item -ItemType Directory -Path $programsPath -Force | Out-Null
+        }
+        $lnk2 = Join-Path $programsPath "Resume Installation.lnk"
+        $shell2 = New-Object -ComObject WScript.Shell
+        $sc2 = $shell2.CreateShortcut($lnk2)
+        $sc2.TargetPath = "powershell.exe"
+        $sc2.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -ClientId `"$ClientId`" -InstallDir `"$InstallDir`" -SourceDir `"$SourceDir`""
+        $sc2.WorkingDirectory = $InstallDir
+        $sc2.Description = "Resume LawnHive Workspace installation after restart"
+        $sc2.IconLocation = "$InstallDir\lawnhive.ico,0"
+        $sc2.Save()
+        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell2) | Out-Null
+        $verifySc2 = New-Object -ComObject WScript.Shell
+        $verifyTarget2 = $verifySc2.CreateShortcut($lnk2)
+        if ($verifyTarget2.Arguments -match '-File\s+""') {
+            Write-Log "RESUME: WARNING - Start Menu resume shortcut created with empty script path! Target: $($verifyTarget2.Arguments)"
+        } else {
+            Write-Log "RESUME: Start Menu shortcut CREATED: $lnk2"
+        }
+        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($verifySc2) | Out-Null
+    } catch {
+        Write-Log "RESUME: WARNING - Start Menu shortcut FAILED: $($_.Exception.Message)"
+    }
+}
+
+# =====================================================================
+# CLEANUP RESUME ARTIFACTS (called on resume or successful completion)
+# =====================================================================
+function Remove-ResumeArtifacts {
+    try { Remove-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" -Name "LawnHiveResume" -ErrorAction SilentlyContinue } catch {}
+    try { Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" -Name "LawnHiveResume" -ErrorAction SilentlyContinue } catch {}
+    try {
+        $lnk = Join-Path ([Environment]::GetFolderPath("Desktop")) "Resume LawnHive Installation.lnk"
+        Remove-Item $lnk -Force -ErrorAction SilentlyContinue
+    } catch {}
+    try {
+        $lnk2 = Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs\LawnHive Workspace\Resume Installation.lnk"
+        Remove-Item $lnk2 -Force -ErrorAction SilentlyContinue
+    } catch {}
+    Write-Log "RESUME: All resume artifacts cleaned up"
 }
 
 # =====================================================================
@@ -336,6 +559,11 @@ function Pull-OnlineImage {
 # =====================================================================
 function Set-EnvFile {
     $envPath = Join-Path $InstallDir ".env"
+    # If .env already exists (resume scenario), do NOT overwrite - preserves original passwords
+    if (Test-Path $envPath) {
+        Write-Log ".env file already exists - keeping existing configuration (resume mode)"
+        return
+    }
     $dbPass = Generate-Password -Length 24
     $redisPass = Generate-Password -Length 24
     
@@ -436,14 +664,24 @@ function Start-Services {
 function Wait-WebReady {
     param([int]$MaxWaitSeconds = 300)
     $elapsed = 0
+    $lastContainerLog = 0
     while ($elapsed -lt $MaxWaitSeconds) {
         try {
             $r = Invoke-WebRequest -Uri "http://localhost:8000" -UseBasicParsing -TimeoutSec 5
-            if ($r.StatusCode -eq 200) {
-                Write-Log "Web server ready after $elapsed seconds."
+            if ($r.StatusCode -eq 200 -or $r.StatusCode -eq 302) {
+                Write-Log "Web server ready after $elapsed seconds. Status: $($r.StatusCode)"
                 return $true
             }
         } catch {}
+        
+        # Every 60 seconds, log container status for debugging
+        if ($elapsed - $lastContainerLog -ge 60) {
+            $running = docker ps --format '{{.Names}}' 2>&1 | Out-String
+            $runningClean = ($running -split "`n" | Where-Object { $_.Trim() -ne "" }) -join ", "
+            Write-Log "Web wait ${elapsed}s: Running containers: $runningClean"
+            $lastContainerLog = $elapsed
+        }
+        
         Start-Sleep -Seconds 5
         $elapsed += 5
     }
@@ -539,122 +777,134 @@ try {
     Enable-WSL2
     Write-Log "STEP 2: Done - WSL2 checked"
 
-    Write-Log "STEP 3: Checking Docker Desktop"
+    # === Check if this is a RESUME after restart ===
+    $isResume = $false
+    try {
+        $resumeState = Get-ItemProperty -Path "HKCU:\SOFTWARE\LawnHive Workspace\Installer" -Name "ResumeInstall" -ErrorAction SilentlyContinue
+        if ($resumeState -and $resumeState.ResumeInstall -eq "1") {
+            $isResume = $true
+            Write-Log "RESUME MODE DETECTED - skipping completed steps"
+            Set-ItemProperty -Path "HKCU:\SOFTWARE\LawnHive Workspace\Installer" -Name "ResumeInstall" -Value "0"
+            Remove-ResumeArtifacts
+        }
+    } catch {}
+
+    # =====================================================================
+    # STEP 3: DOCKER DESKTOP - Smart detect, install if needed, start daemon
+    # =====================================================================
+    Write-Log "STEP 3: Smart Docker Desktop detection"
     Set-Progress -Percent 12 -Step "Checking Docker Desktop..."
     $needsRestart = $false
-    if (-not (Test-DockerInstalled)) {
+
+    if (Test-DockerInstalled) {
+        # Docker Desktop is already installed - just make sure daemon is running
+        Write-Log "STEP 3: Docker Desktop is installed" + $(if ($isResume) { " (RESUME)" } else { "" })
+
+        if (Wait-DockerReady -MaxWaitSeconds 10) {
+            Write-Log "STEP 3: Docker daemon already running"
+        } else {
+            Write-Log "STEP 3: Docker daemon not responding - starting Docker Desktop..."
+            Set-Progress -Percent 18 -Step "Starting Docker Desktop..."
+            Start-DockerDesktop | Out-Null
+            Start-Sleep -Seconds 10
+
+            if (Wait-DockerReady -MaxWaitSeconds 180) {
+                Write-Log "STEP 3: Docker daemon started successfully"
+            } else {
+                Write-Log "STEP 3: Docker daemon still not responding after 3 minutes"
+                $virtCheck = Test-Virtualization
+                if (-not $virtCheck.Enabled) {
+                    throw "VIRTUALIZATION_DISABLED"
+                }
+                throw "Docker did not start properly. Virtualization is enabled but Docker daemon is not responding."
+            }
+        }
+    } else {
+        # Docker Desktop NOT installed - need to download and install
         Write-Log "STEP 3: Docker Desktop NOT found - will install"
         if (-not (Test-Internet)) {
-            Write-Log "STEP 3: No internet connection available"
             throw "NO_INTERNET_NO_DOCKER"
         }
         Write-Log "STEP 3: Internet OK - downloading Docker Desktop"
         Set-Progress -Percent 15 -Step "Downloading Docker Desktop..."
         $needsRestart = Install-DockerDesktop
-    } else {
-        Write-Log "STEP 3: Docker Desktop already installed"
     }
 
-    # Check if a restart is needed (Docker exit 3010 OR WSL2 was just enabled)
+    # Check if a restart is needed (Docker exit 3010 OR WSL2 pending)
     $rebootCheck = Test-PendingReboot
     if ($needsRestart -or $rebootCheck.Pending) {
         $reason = if ($needsRestart) { "Docker Desktop installer requires restart" } else { "System restart pending: $($rebootCheck.Reasons -join ', ')" }
         Write-Log "STEP 3: Restart needed - $reason"
-        
-        # Save resume state for post-restart
-        $regPath = "HKCU:\SOFTWARE\LawnHive Workspace\Installer"
-        New-Item -Path $regPath -Force | Out-Null
-        Set-ItemProperty -Path $regPath -Name "ResumeInstall" -Value "1"
-        Set-ItemProperty -Path $regPath -Name "InstallDir" -Value $InstallDir
-        Set-ItemProperty -Path $regPath -Name "ClientId" -Value $ClientId
-        Set-ItemProperty -Path $regPath -Name "SourceDir" -Value $SourceDir
-        
-        # Write resume command to RunOnce (runs after restart)
-        $resumeCmd = "`"$($MyInvocation.MyCommand.Path)`" -ClientId `"$ClientId`" -InstallDir `"$InstallDir`" -SourceDir `"$SourceDir`""
-        $runOncePath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
-        Set-ItemProperty -Path $runOncePath -Name "LawnHiveResume" -Value $resumeCmd
-        Write-Log "STEP 3: RunOnce resume entry saved to: $runOncePath"
-        
+        Save-ResumeState
         Set-Progress -Percent 100 -Step "Restart required"
         "3010" | Out-File -FilePath (Join-Path $InstallDir "install-progress-done.txt") -Encoding ascii -Force
+        Write-Log "STEP 3: Exit code 3010 written. Ready for restart."
         exit 3010
     }
-    Write-Log "STEP 3: Done - Docker Desktop ready"
+    Write-Log "STEP 3: Done - Docker Desktop ready and daemon running"
 
-    Write-Log "STEP 4: Waiting for Docker daemon to respond"
-    Set-Progress -Percent 25 -Step "Starting Docker services..."
-    
-    # Phase 1: Wait up to 120 seconds for Docker to respond
-    if (Wait-DockerReady -MaxWaitSeconds 120) {
-        Write-Log "STEP 4: Docker daemon responded on first wait"
-    } else {
-        # Phase 2: Try starting Docker Desktop manually
-        Write-Log "STEP 4: Docker not responding. Attempting to start Docker Desktop..."
-        Set-Progress -Percent 26 -Step "Starting Docker Desktop..."
-        Start-DockerDesktop | Out-Null
-        Start-Sleep -Seconds 10
-        
-        # Phase 3: Wait another 120 seconds after manual start
-        Write-Log "STEP 4: Waiting after manual Docker Desktop start..."
-        if (Wait-DockerReady -MaxWaitSeconds 120) {
-            Write-Log "STEP 4: Docker daemon responded after manual start"
-        } else {
-            # Phase 4: Docker still won't start - check virtualization
-            Write-Log "STEP 4: Docker still not responding. Checking virtualization..."
-            $virtCheck = Test-Virtualization
-            
-            if (-not $virtCheck.Enabled) {
-                Write-Log "STEP 4: VIRTUALIZATION NOT ENABLED"
-                throw "VIRTUALIZATION_DISABLED"
-            } else {
-                Write-Log "STEP 4: Virtualization is enabled but Docker still not starting"
-                throw "Docker did not start properly. Virtualization is enabled but Docker daemon is not responding."
-            }
-        }
-    }
-    Write-Log "STEP 4: Done - Docker daemon ready"
-
-    Write-Log "STEP 5: Loading/Pulling image"
+    Write-Log "STEP 4: Loading/Pulling image"
     Set-Progress -Percent 28 -Step "Loading workspace components..."
     $localImage = Find-LocalImage
     
     if ($localImage) {
-        Write-Log "STEP 5: MODE = Offline (file: $localImage)"
+        Write-Log "STEP 4: MODE = Offline (file: $localImage)"
         Load-LocalImage -ImagePath $localImage
     } else {
-        Write-Log "STEP 5: MODE = Online (Docker Hub)"
+        Write-Log "STEP 4: MODE = Online (Docker Hub)"
         if (-not (Test-Internet)) {
-            Write-Log "STEP 5: No internet for image download"
+            Write-Log "STEP 4: No internet for image download"
             throw "NO_IMAGE_NO_INTERNET"
         }
         Pull-OnlineImage
     }
-    Write-Log "STEP 5: Done - image ready"
+    Write-Log "STEP 4: Done - image ready"
 
-    Write-Log "STEP 6: Starting Docker containers"
+    Write-Log "STEP 5: Starting Docker containers"
     Set-Progress -Percent 75 -Step "Starting workspace containers..."
     Start-Services
-    Write-Log "STEP 6: Done - containers started"
+    Write-Log "STEP 5: Done - containers started"
 
-    Write-Log "STEP 7: Waiting for web server (max 300s)"
+    Write-Log "STEP 6: Waiting for web server (max 300s)"
     Set-Progress -Percent 85 -Step "Configuring workspace..."
-    Wait-WebReady -MaxWaitSeconds 300
-    Write-Log "STEP 7: Done - web server responding"
+    if (-not (Wait-WebReady -MaxWaitSeconds 300)) {
+        Write-Log "STEP 6: Web server did NOT respond. Running container diagnostics..."
+        
+        # Diagnostic 1: Check which containers are running vs exited
+        $psOutput = docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' 2>&1 | Out-String
+        Write-Log "STEP 6: Container status: $psOutput"
+        
+        # Diagnostic 2: Check logs of the main erpnext container for errors
+        $containers = @("site1-erpnext-python-1", "site1-erpnext-worker-default-1", "site1-erpnext-scheduler-1", "site1-mariadb-1", "site1-redis-1")
+        foreach ($c in $containers) {
+            $logOutput = docker logs $c --tail 10 2>&1 | Out-String
+            if ($logOutput.Trim() -ne "") {
+                Write-Log "STEP 6: Logs for ${c}: $logOutput"
+            }
+        }
+        
+        # Diagnostic 3: Check if port 8000 is occupied by something else
+        $portCheck = netstat -ano 2>&1 | Select-String ":8000" | Out-String
+        Write-Log "STEP 6: Port 8000 status: $portCheck"
+        
+        throw "Web server did not respond after 5 minutes. Containers may have failed to start. Check install.log for details."
+    }
+    Write-Log "STEP 6: Done - web server responding"
 
-    Write-Log "STEP 8: Adding firewall rule"
+    Write-Log "STEP 7: Adding firewall rule"
     Set-Progress -Percent 93 -Step "Setting up network access..."
     Add-FirewallRule
-    Write-Log "STEP 8: Done"
+    Write-Log "STEP 7: Done"
 
-    Write-Log "STEP 9: Detecting local IP"
+    Write-Log "STEP 8: Detecting local IP"
     Set-Progress -Percent 97 -Step "Detecting network address..."
     $localIP = Get-LocalIPAddress
     if ($localIP) {
         $ipFile = Join-Path $InstallDir "server-ip.txt"
         [System.IO.File]::WriteAllText($ipFile, $localIP, [System.Text.Encoding]::UTF8)
-        Write-Log "STEP 9: Server IP = $localIP"
-    } else {
-        Write-Log "STEP 9: Could not detect local IP"
+        Write-Log "STEP 8: Server IP = $localIP"
+        } else {
+            Write-Log "STEP 8: Could not detect local IP"
     }
 
     Write-Log "========================================="
@@ -697,6 +947,11 @@ try {
             "4. Set it to 'Enabled'`r`n" +
             "5. Save and exit BIOS`r`n" +
             "6. Run the installer again"
+    } elseif ($errMsg -match "Web server did not respond") {
+        $userMsg = "The workspace containers started but the web server did not respond.`r`n`r`n" +
+            "This usually means a container crashed during startup.`r`n" +
+            "Please restart your computer and run the installer again.`r`n`r`n" +
+            "If the problem persists, contact support with the install.log file."
     } elseif ($errMsg -match "Docker did not start") {
         $userMsg = "Docker Desktop is installed but the service is not responding.`r`n`r`n" +
             "This can happen if the computer needs a restart.`r`n`r`n" +
@@ -744,6 +999,7 @@ try {
     elseif ($errMsg -eq "NO_IMAGE_NO_INTERNET") { $errorCode = "NO_IMAGE_NO_INTERNET" }
     elseif ($errMsg -eq "VIRTUALIZATION_DISABLED") { $errorCode = "VIRTUALIZATION_DISABLED" }
     elseif ($errMsg -match "Docker did not start") { $errorCode = "DOCKER_START_FAILED" }
+    elseif ($errMsg -match "Web server did not respond") { $errorCode = "WEB_SERVER_FAILED" }
     elseif ($errMsg -match "Failed to start workspace") { $errorCode = "CONTAINER_START_FAILED" }
     elseif ($errMsg -match "Could not install required system components") { $errorCode = "DOCKER_DOWNLOAD_FAILED" }
     elseif ($errMsg -match "Failed to download") { $errorCode = "DOWNLOAD_FAILED" }

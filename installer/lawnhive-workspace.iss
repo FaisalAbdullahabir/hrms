@@ -80,6 +80,8 @@ Type: files; Name: "{app}\install-progress.txt"
 Type: files; Name: "{app}\install-progress-done.txt"
 Type: files; Name: "{app}\install.pid"
 Type: files; Name: "{app}\force-internet.txt"
+Type: files; Name: "{app}\lawnhive-debug.txt"
+Type: files; Name: "{autodesktop}\Resume LawnHive Installation.lnk"
 
 [Code]
 type
@@ -608,12 +610,21 @@ end;
 procedure DeinitializeSetup;
 var
   ResultCode: Integer;
+  ResumeLnk: String;
 begin
-  DeleteFile(ExpandConstant('{app}\install.ps1'));
-  DeleteFile(ExpandConstant('{app}\install-progress.txt'));
-  DeleteFile(ExpandConstant('{app}\install-progress-done.txt'));
-  DeleteFile(ExpandConstant('{app}\install.pid'));
-  DeleteFile(ExpandConstant('{app}\force-internet.txt'));
+  if not NeedsRestart then
+  begin
+    DeleteFile(ExpandConstant('{app}\install.ps1'));
+    DeleteFile(ExpandConstant('{app}\install-progress.txt'));
+    DeleteFile(ExpandConstant('{app}\install-progress-done.txt'));
+    DeleteFile(ExpandConstant('{app}\install.pid'));
+    DeleteFile(ExpandConstant('{app}\force-internet.txt'));
+    DeleteFile(ExpandConstant('{app}\lawnhive-debug.txt'));
+    
+    ResumeLnk := ExpandConstant('{autodesktop}\Resume LawnHive Installation.lnk');
+    if FileExists(ResumeLnk) then
+      DeleteFile(ResumeLnk);
+  end;
   
   if NeedsRestart then
   begin

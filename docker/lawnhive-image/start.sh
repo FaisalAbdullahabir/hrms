@@ -1,23 +1,18 @@
 #!/bin/bash
-set -e
+set -uo pipefail
 
-# ── Fix HOME (Windows Docker Desktop leaks Windows HOME) ────────
 export HOME=/home/frappe
+LOGFILE="/home/frappe/frappe-bench/startup.log"
 
-# ── Ensure localhost resolves (required by wkhtmltopdf for PDF generation) ──
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOGFILE"; }
+
 if ! grep -q "127.0.0.1 localhost" /etc/hosts 2>/dev/null; then
     echo "127.0.0.1 localhost" >> /etc/hosts
 fi
 
-echo '=========================================='
-echo '  LawnHive Workspace - Starting...'
-echo '=========================================='
-
-# ── Required environment variables ───────────────────────────────
-# DB_ROOT_PASSWORD  - MariaDB root password
-# REDIS_PASSWORD    - Redis authentication password
-# ADMIN_PASSWORD    - Frappe admin password (default: admin)
-# SITE_NAME         - Site name (default: site1.local)
+log '=========================================='
+log '  LawnHive Workspace - Starting...'
+log '=========================================='
 
 DB_ROOT_PASSWORD="${DB_ROOT_PASSWORD:-frappe}"
 REDIS_PASSWORD="${REDIS_PASSWORD:-}"
@@ -26,7 +21,6 @@ SITE_NAME="${SITE_NAME:-site1.local}"
 DB_HOST="${DB_HOST:-mariadb}"
 DB_PORT="${DB_PORT:-3306}"
 
-# ── Build Redis URLs from password ──────────────────────────────
 if [ -n "$REDIS_PASSWORD" ]; then
     REDIS_CACHE_URL="redis://:${REDIS_PASSWORD}@redis:6379/0"
     REDIS_QUEUE_URL="redis://:${REDIS_PASSWORD}@redis:6379/1"
@@ -37,27 +31,101 @@ else
     REDIS_SOCKETIO_URL="redis://redis:6379/2"
 fi
 
-# ── Wait for MariaDB ────────────────────────────────────────────
-echo 'Waiting for database...'
+log 'Waiting for database...'
+WAIT_COUNT=0
 until mysqladmin ping -h "$DB_HOST" -u root -p"$DB_ROOT_PASSWORD" --silent 2>/dev/null; do
-    echo "Waiting for MariaDB..."
+    WAIT_COUNT=$((WAIT_COUNT + 1))
+    if [ "$WAIT_COUNT" -gt 60 ]; then
+        log 'FATAL: MariaDB not ready after 5 minutes. Exiting.'
+        exit 1
+    fi
+    log "Waiting for MariaDB... ($WAIT_COUNT)"
     sleep 5
 done
-echo 'Database is ready.'
+log 'Database is ready.'
 
 cd /home/frappe/frappe-bench
 
-# ── Create site if it doesn't exist ─────────────────────────────
-if [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then
-    echo "Creating new site: ${SITE_NAME}..."
-    bench new-site "$SITE_NAME" \
-        --db-host "$DB_HOST" \
-        --db-port "$DB_PORT" \
-        --mariadb-root-password "$DB_ROOT_PASSWORD" \
-        --admin-password "$ADMIN_PASSWORD" \
-        --no-mariadb-socket
+# ── Retry counter (max 3 attempts to prevent infinite loop) ─────
+MAX_ATTEMPTS=3
+ATTEMPT_FILE="sites/.setup_attempts"
+ATTEMPT=1
+if [ -f "$ATTEMPT_FILE" ]; then
+    ATTEMPT=$(cat "$ATTEMPT_FILE")
+fi
 
-    echo 'Configuring Redis...'
+# If no site directory exists, counter is stale from previous cleanup — reset
+if [ ! -d "sites/${SITE_NAME}" ] && [ "$ATTEMPT" -gt 1 ]; then
+    log "Site directory gone but counter shows attempt ${ATTEMPT}. Resetting counter."
+    ATTEMPT=1
+    echo "1" > "$ATTEMPT_FILE"
+fi
+
+cleanup_partial_site() {
+    log "Cleaning up partial site data..."
+    bench drop-site "$SITE_NAME" --root-password "$DB_ROOT_PASSWORD" 2>/dev/null || true
+
+    if [ -d "sites/${SITE_NAME}" ]; then
+        find "sites/${SITE_NAME}" -mindepth 1 -not -path "*/private/backups*" -not -path "*/private/backups" -delete 2>/dev/null || true
+        rm -rf "sites/${SITE_NAME}/apps" "sites/${SITE_NAME}/locks" "sites/${SITE_NAME}/site_config.json" "sites/${SITE_NAME}/site_database.sql" "sites/${SITE_NAME}/common_site_config.json" 2>/dev/null || true
+    fi
+    rm -f "$ATTEMPT_FILE" 2>/dev/null || true
+
+    log "Partial cleanup done (backups volume preserved, attempt counter reset)."
+}
+
+if [ -d "sites/${SITE_NAME}" ] && [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then
+    log "WARNING: Partial site directory exists without site_config.json (attempt ${ATTEMPT}/${MAX_ATTEMPTS})."
+    if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+        log "FATAL: Max retry attempts (${MAX_ATTEMPTS}) reached. Manual intervention required."
+        log "Run: docker exec <container> rm -rf /home/frappe/frappe-bench/sites/${SITE_NAME}"
+        log "Then restart the container."
+        echo "$MAX_ATTEMPTS" > "$ATTEMPT_FILE"
+        exec tail -f /dev/null
+    fi
+    ATTEMPT=$((ATTEMPT + 1))
+    echo "$ATTEMPT" > "$ATTEMPT_FILE"
+    cleanup_partial_site
+fi
+
+if [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then
+    echo "$ATTEMPT" > "$ATTEMPT_FILE"
+    log "Creating new site: ${SITE_NAME} (attempt ${ATTEMPT}/${MAX_ATTEMPTS})..."
+    NEW_SITE_LOG="/home/frappe/frappe-bench/new-site-output.log"
+    su -s /bin/bash frappe -c "HOME=/home/frappe bench new-site $SITE_NAME --db-host $DB_HOST --db-port $DB_PORT --mariadb-root-password '$DB_ROOT_PASSWORD' --admin-password '$ADMIN_PASSWORD' --no-mariadb-socket" > "$NEW_SITE_LOG" 2>&1
+    NEW_SITE_EXIT=$?
+    cat "$NEW_SITE_LOG" >> "$LOGFILE"
+
+    log "bench new-site exit code: ${NEW_SITE_EXIT}"
+    log "bench new-site output lines: $(wc -l < "$NEW_SITE_LOG")"
+
+    if [ $NEW_SITE_EXIT -ne 0 ]; then
+        log 'ERROR: bench new-site returned non-zero exit code!'
+        log '--- RAW bench new-site output (last 50 lines) ---'
+        tail -50 "$NEW_SITE_LOG" | while IFS= read -r line; do log "  $line"; done
+        log '--- END RAW output ---'
+    fi
+
+    if [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then
+        log 'FATAL: bench new-site failed — site_config.json not found after creation.'
+        log '--- FULL bench new-site output ---'
+        cat "$NEW_SITE_LOG" >> "$LOGFILE"
+        log '--- END FULL output ---'
+        log 'Attempting cleanup of partial database and directory...'
+        cleanup_partial_site
+        if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+            log "FATAL: Max retry attempts (${MAX_ATTEMPTS}) reached. Manual intervention required."
+            exec tail -f /dev/null
+        fi
+        ATTEMPT=$((ATTEMPT + 1))
+        echo "$ATTEMPT" > "$ATTEMPT_FILE"
+        log "Will retry on next container restart."
+        exit 1
+    fi
+    echo "0" > "$ATTEMPT_FILE"
+    log 'Site created successfully.'
+
+    log 'Configuring Redis...'
     python3 -c "
 import json
 with open('sites/common_site_config.json', 'r+') as f:
@@ -68,9 +136,9 @@ with open('sites/common_site_config.json', 'r+') as f:
     f.seek(0)
     json.dump(cfg, f, indent=2)
     f.truncate()
-"
+" 2>&1 | tee -a "$LOGFILE"
 
-    echo 'Configuring wkhtmltopdf for PDF generation...'
+    log 'Configuring wkhtmltopdf for PDF generation...'
     python3 -c "
 import json, os
 site_cfg_path = 'sites/${SITE_NAME}/site_config.json'
@@ -83,41 +151,34 @@ if os.path.exists(site_cfg_path):
         f.seek(0)
         json.dump(cfg, f, indent=2)
         f.truncate()
-"
+" 2>&1 | tee -a "$LOGFILE"
 
-    echo 'Installing ERPNext...'
-    bench --site "$SITE_NAME" install-app erpnext
+    APPS=("erpnext" "hrms" "education" "drive" "lawnhive_branding" "license_control")
+    for app in "${APPS[@]}"; do
+        log "Installing ${app}..."
+        bench --site "$SITE_NAME" install-app "$app" 2>&1 | tee -a "$LOGFILE"
+        if [ $? -ne 0 ]; then
+            log "WARNING: install-app ${app} failed (non-fatal, continuing)"
+        fi
+    done
 
-    echo 'Installing HRMS...'
-    bench --site "$SITE_NAME" install-app hrms
+    log 'Building assets...'
+    bench build 2>&1 | tee -a "$LOGFILE" || true
 
-    echo 'Installing Education...'
-    bench --site "$SITE_NAME" install-app education
+    log 'Applying LawnHive branding...'
+    bench --site "$SITE_NAME" execute lawnhive_branding.setup.after_install 2>&1 | tee -a "$LOGFILE" || true
 
-    echo 'Installing Drive...'
-    bench --site "$SITE_NAME" install-app drive
+    log 'Setting up Student Health Record feature...'
+    bench --site "$SITE_NAME" execute lawnhive_branding.education_health.setup.setup_all 2>&1 | tee -a "$LOGFILE" || true
 
-    echo 'Installing LawnHive Branding...'
-    bench --site "$SITE_NAME" install-app lawnhive_branding
-
-    echo 'Installing License Control...'
-    bench --site "$SITE_NAME" install-app license_control
-
-    echo 'Building assets...'
-    bench build 2>&1 || true
-
-    echo 'Applying LawnHive branding...'
-    bench --site "$SITE_NAME" execute lawnhive_branding.setup.after_install 2>&1 || true
-
-    echo 'Setting up Student Health Record feature...'
-    bench --site "$SITE_NAME" execute lawnhive_branding.education_health.setup.setup_all 2>&1 || true
-
-    echo 'Setting default workspace...'
+    log 'Setting default workspace...'
     bench --site "$SITE_NAME" execute "
 import frappe
 frappe.db.set_single_value('System Settings', 'app_name', 'LawnHive Workspace')
 frappe.db.commit()
-" 2>&1 || true
+" 2>&1 | tee -a "$LOGFILE" || true
+
+    log 'Initial setup complete.'
 fi
 
 # ── Ensure apps.txt is correct ──────────────────────────────────

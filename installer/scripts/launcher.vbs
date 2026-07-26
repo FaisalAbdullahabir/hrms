@@ -4,7 +4,7 @@
 Set WshShell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 
-installDir = WshShell.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\LawnHive Workspace"
+installDir = fso.GetParentFolderName(WScript.ScriptFullName)
 composeFile = installDir & "\docker-compose.yml"
 
 ' Check if Docker Desktop is running
