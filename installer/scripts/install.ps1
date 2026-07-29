@@ -172,44 +172,92 @@ function Find-DockerDesktopPath {
 }
 
 function Test-DockerInstalled {
+    Write-Log "Test-DockerInstalled: Starting Docker detection..."
     # Check 1: Known paths
+    Write-Log "Test-DockerInstalled: Check 1 - Known file paths..."
     $paths = @(
         "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
         "$env:LOCALAPPDATA\Docker\app\version\bin\Docker Desktop.exe"
     )
     foreach ($p in $paths) {
         if (Test-Path $p) {
-            Write-Log "Docker Desktop found at: $p"
+            Write-Log "Test-DockerInstalled: FOUND at known path: $p"
             return $true
         }
     }
+    Write-Log "Test-DockerInstalled: Check 1 - Not found at known paths"
+    
     # Check 2: docker CLI (installed but exe at non-standard location)
+    Write-Log "Test-DockerInstalled: Check 2 - Docker CLI..."
     try {
         $ver = docker --version 2>&1 | Out-String
         if ($ver -match "Docker version") {
-            Write-Log "Docker found via CLI: $($ver.Trim())"
+            Write-Log "Test-DockerInstalled: FOUND via CLI: $($ver.Trim())"
             return $true
         }
     } catch {}
-    # Check 3: Registry
+    Write-Log "Test-DockerInstalled: Check 2 - Docker CLI not available"
+    
+    # Check 3: Registry + where.exe + Get-Command
+    Write-Log "Test-DockerInstalled: Check 3 - Registry/PATH detection..."
     $regPath = Find-DockerDesktopPath
     if ($regPath) {
+        Write-Log "Test-DockerInstalled: FOUND via Find-DockerDesktopPath: $regPath"
         return $true
     }
+    
+    Write-Log "Test-DockerInstalled: NOT FOUND by any method"
     return $false
 }
 
 function Wait-DockerReady {
     param([int]$MaxWaitSeconds = 180)
     $elapsed = 0
+    $prompted = $false
+
+    # Refresh PATH so docker CLI is accessible even after fresh install
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
     while ($elapsed -lt $MaxWaitSeconds) {
         try {
-            docker info 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) { return $true }
+            $ver = docker info 2>&1 | Out-String
+            if ($LASTEXITCODE -eq 0) {
+                Write-Log "Docker daemon ready after ${elapsed}s"
+                return $true
+            }
         } catch {}
+        
+        # After 30 seconds, show visible prompt (only once)
+        if ($elapsed -ge 30 -and -not $prompted) {
+            $prompted = $true
+            Write-Log "Docker daemon not responding after ${elapsed}s - showing manual start prompt"
+            Set-Progress -Percent 18 -Step "Docker Desktop needs to be started manually..."
+            
+            # Show a message box via WPF (non-blocking to installer flow)
+            Add-Type -AssemblyName PresentationFramework
+            $null = [System.Threading.Thread]::new({
+                [System.Windows.MessageBox]::Show(
+                    "Docker Desktop needs to be started manually." + [Environment]::NewLine + [Environment]::NewLine +
+                    "Please do the following:" + [Environment]::NewLine +
+                    "1. Press the Windows key" + [Environment]::NewLine +
+                    "2. Type 'Docker Desktop'" + [Environment]::NewLine +
+                    "3. Click on Docker Desktop to open it" + [Environment]::NewLine +
+                    "4. Wait for the whale icon to appear in the taskbar" + [Environment]::NewLine + [Environment]::NewLine +
+                    "The installer will continue automatically once Docker is ready." + [Environment]::NewLine +
+                    "This window will close on its own.",
+                    "LawnHive Workspace - Action Required",
+                    "OK",
+                    "Information")
+            }).Start()
+        }
+        
         Start-Sleep -Seconds 5
         $elapsed += 5
+        if ($elapsed % 15 -eq 0) {
+            Write-Log "Waiting for Docker daemon... (${elapsed}/${MaxWaitSeconds}s)"
+        }
     }
+    Write-Log "Docker daemon NOT ready after ${MaxWaitSeconds}s timeout"
     return $false
 }
 
@@ -298,53 +346,116 @@ function Test-Virtualization {
 # START DOCKER DAEMON (service first, then GUI app as fallback)
 # =====================================================================
 function Start-DockerDesktop {
+    Write-Log "Start-DockerDesktop: Beginning Docker startup sequence..."
+
     # === Strategy 1: Start the Windows Service directly (no path needed) ===
+    Write-Log "Start-DockerDesktop: Strategy 1 - Checking Windows services..."
     $svcNames = @("com.docker.service", "Docker Desktop Service", "docker")
+    $svcFound = $false
     foreach ($svc in $svcNames) {
         try {
             $service = Get-Service -Name $svc -ErrorAction SilentlyContinue
             if ($service) {
-                Write-Log "Found Docker service: $svc (Status: $($service.Status))"
+                $svcFound = $true
+                Write-Log "Start-DockerDesktop: Found service '$svc' (Status: $($service.Status))"
                 if ($service.Status -ne "Running") {
-                    Write-Log "Starting Docker service: $svc..."
+                    Write-Log "Start-DockerDesktop: Starting service '$svc'..."
                     Start-Service -Name $svc -ErrorAction Stop
-                    Write-Log "Docker service $svc started successfully"
+                    Write-Log "Start-DockerDesktop: Service '$svc' started successfully"
                     return $true
                 } else {
-                    Write-Log "Docker service $svc is already running"
+                    Write-Log "Start-DockerDesktop: Service '$svc' already running"
                     return $true
                 }
             }
         } catch {
-            Write-Log "Could not start service $svc`: $($_.Exception.Message)"
+            Write-Log "Start-DockerDesktop: Service '$svc' error: $($_.Exception.Message)"
         }
+    }
+    if (-not $svcFound) {
+        Write-Log "Start-DockerDesktop: Strategy 1 FAILED - No Docker services registered (tried: $($svcNames -join ', '))"
     }
 
     # === Strategy 2: Find Docker Desktop.exe via robust detection and launch GUI ===
+    Write-Log "Start-DockerDesktop: Strategy 2 - Searching for Docker Desktop.exe..."
     $exePath = Find-DockerDesktopPath
     if ($exePath) {
-        Write-Log "Starting Docker Desktop GUI from: $exePath"
+        Write-Log "Start-DockerDesktop: Found exe at: $exePath"
         try {
             Start-Process -FilePath $exePath -WindowStyle Minimized
-            Write-Log "Docker Desktop GUI start command sent."
+            Write-Log "Start-DockerDesktop: GUI launch command sent successfully"
             return $true
         } catch {
-            Write-Log "Failed to start Docker Desktop GUI: $($_.Exception.Message)"
+            Write-Log "Start-DockerDesktop: Strategy 2 FAILED - GUI launch error: $($_.Exception.Message)"
         }
+    } else {
+        Write-Log "Start-DockerDesktop: Strategy 2 FAILED - Docker Desktop.exe not found by any detection method"
     }
 
     # === Strategy 3: Start-Process "Docker Desktop" (relies on Windows PATH/app registration) ===
+    Write-Log "Start-DockerDesktop: Strategy 3 - Trying app registration launch..."
     try {
-        Write-Log "Attempting Start-Process 'Docker Desktop' (app registration)..."
         Start-Process -FilePath "Docker Desktop" -WindowStyle Minimized -ErrorAction Stop
-        Write-Log "Docker Desktop launched via app registration"
+        Write-Log "Start-DockerDesktop: Strategy 3 succeeded - launched via app registration"
         return $true
     } catch {
-        Write-Log "App registration launch failed: $($_.Exception.Message)"
+        Write-Log "Start-DockerDesktop: Strategy 3 FAILED - $($_.Exception.Message)"
     }
 
-    Write-Log "All Docker start methods failed"
+    Write-Log "Start-DockerDesktop: ALL strategies FAILED"
     return $false
+}
+
+# =====================================================================
+# TEST DOCKER CLI - Verify docker command is accessible from PowerShell
+# Refreshes PATH from registry (for fresh installs), tries full path as fallback
+# =====================================================================
+function Test-DockerCLI {
+    Write-Log "Test-DockerCLI: Checking if docker CLI is callable..."
+
+    # Strategy 1: Refresh PATH from registry (catches fresh Docker installs)
+    Write-Log "Test-DockerCLI: Refreshing PATH from registry..."
+    $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = $machinePath + ";" + $userPath
+
+    # Strategy 2: Try 'docker --version' with refreshed PATH
+    try {
+        $ver = docker --version 2>&1 | Out-String
+        if ($LASTEXITCODE -eq 0 -and $ver -match "Docker version") {
+            Write-Log "Test-DockerCLI: FOUND via PATH: $($ver.Trim())"
+            return "docker"
+        }
+    } catch {
+        Write-Log "Test-DockerCLI: docker --version failed: $($_.Exception.Message)"
+    }
+
+    # Strategy 3: Try full path to docker.exe (PATH-independent fallback)
+    $dockerPaths = @(
+        "$env:ProgramFiles\Docker\Docker\resources\bin\docker.exe",
+        "${env:ProgramFiles(x86)}\Docker\Docker\resources\bin\docker.exe",
+        "$env:LOCALAPPDATA\Docker\app\version\resources\bin\docker.exe",
+        "C:\Program Files\Docker\Docker\resources\bin\docker.exe"
+    )
+    foreach ($dp in $dockerPaths) {
+        if (Test-Path $dp) {
+            try {
+                $ver = & $dp --version 2>&1 | Out-String
+                if ($LASTEXITCODE -eq 0 -and $ver -match "Docker version") {
+                    Write-Log "Test-DockerCLI: FOUND at full path ($dp): $($ver.Trim())"
+                    $dockerDir = Split-Path $dp -Parent
+                    $env:Path = $dockerDir + ";" + $env:Path
+                    Write-Log "Test-DockerCLI: Added $dockerDir to PATH"
+                    return "docker"
+                }
+            } catch {
+                Write-Log "Test-DockerCLI: Full path $dp failed: $($_.Exception.Message)"
+            }
+        }
+    }
+
+    Write-Log "Test-DockerCLI: NOT FOUND by any method"
+    return $null
 }
 
 # =====================================================================
@@ -646,12 +757,41 @@ function Enable-WSL2 {
 function Start-Services {
     Push-Location $InstallDir
     
-    Write-Log "Starting services..."
-    docker compose up -d 2>&1 | ForEach-Object { Write-Log $_ }
+    Write-Log "Starting services with docker compose up -d..."
+    Write-Log "Note: First run may take a few minutes if images need to be pulled."
     
-    if ($LASTEXITCODE -ne 0) {
-        Pop-Location
-        throw "Failed to start workspace services."
+    # Run docker compose up -d and capture all output
+    $composeOutput = @()
+    docker compose up -d 2>&1 | ForEach-Object {
+        $line = $_.ToString()
+        $composeOutput += $line
+        Write-Log "compose: $line"
+    }
+    $composeExit = $LASTEXITCODE
+    
+    Write-Log "docker compose up -d exit code: $composeExit"
+    
+    # Log container status for debugging
+    $containerStatus = docker ps -a --format "table {{.Names}}\t{{.Status}}" 2>&1 | Out-String
+    Write-Log "Container status after compose up: $containerStatus"
+    
+    if ($composeExit -ne 0) {
+        # Check if containers are actually running despite exit code
+        $runningCount = (docker ps --format "{{.Names}}" 2>&1 | Measure-Object).Count
+        Write-Log "Running containers after compose up: $runningCount"
+        
+        if ($runningCount -ge 2) {
+            # At least some containers are running — continue despite exit code
+            Write-Log "WARNING: docker compose exited with code $composeExit but $runningCount containers are running. Continuing."
+        } else {
+            Pop-Location
+            throw "Failed to start workspace services. Docker compose exit code: $composeExit`r`n`r`n" +
+                "This can happen if:`r`n" +
+                "- Required images could not be downloaded`r`n" +
+                "- Port 8000 is already in use by another program`r`n" +
+                "- Docker needs more time to initialize`r`n`r`n" +
+                "Please restart your computer and try again. If the problem persists, check install.log."
+        }
     }
     
     Pop-Location
@@ -803,9 +943,23 @@ try {
         if (Wait-DockerReady -MaxWaitSeconds 10) {
             Write-Log "STEP 3: Docker daemon already running"
         } else {
-            Write-Log "STEP 3: Docker daemon not responding - starting Docker Desktop..."
+            Write-Log "STEP 3: Docker daemon not responding - attempting to start Docker Desktop..."
             Set-Progress -Percent 18 -Step "Starting Docker Desktop..."
-            Start-DockerDesktop | Out-Null
+            $startResult = Start-DockerDesktop
+            Write-Log "STEP 3: Start-DockerDesktop returned: $startResult"
+            
+            if (-not $startResult) {
+                Write-Log "STEP 3: Start-DockerDesktop FAILED - all start methods exhausted"
+                Write-Log "STEP 3: Showing visible error to user"
+                throw "Docker was found on your computer but could not be started automatically." + [Environment]::NewLine + [Environment]::NewLine +
+                    "Please start Docker Desktop manually:" + [Environment]::NewLine +
+                    "1. Press the Windows key" + [Environment]::NewLine +
+                    "2. Type 'Docker Desktop'" + [Environment]::NewLine +
+                    "3. Click on Docker Desktop to open it" + [Environment]::NewLine +
+                    "4. Wait for the whale icon in the taskbar (1-2 minutes)" + [Environment]::NewLine +
+                    "5. Then run this installer again"
+            }
+            
             Start-Sleep -Seconds 10
 
             if (Wait-DockerReady -MaxWaitSeconds 180) {
@@ -816,7 +970,12 @@ try {
                 if (-not $virtCheck.Enabled) {
                     throw "VIRTUALIZATION_DISABLED"
                 }
-                throw "Docker did not start properly. Virtualization is enabled but Docker daemon is not responding."
+                throw "Docker did not start properly. Virtualization is enabled but Docker daemon is not responding." + [Environment]::NewLine + [Environment]::NewLine +
+                    "Please try:" + [Environment]::NewLine +
+                    "1. Restart your computer" + [Environment]::NewLine +
+                    "2. Wait 2 minutes after login" + [Environment]::NewLine +
+                    "3. Run this installer again" + [Environment]::NewLine + [Environment]::NewLine +
+                    "If this keeps happening, open Docker Desktop manually first, then run the installer."
             }
         }
     } else {
@@ -828,6 +987,24 @@ try {
         Write-Log "STEP 3: Internet OK - downloading Docker Desktop"
         Set-Progress -Percent 15 -Step "Downloading Docker Desktop..."
         $needsRestart = Install-DockerDesktop
+
+        # Fresh install without restart: refresh PATH + verify docker CLI is callable
+        if (-not $needsRestart) {
+            Write-Log "STEP 3: Docker Desktop installed (exit 0). Verifying Docker CLI..."
+            $dockerCLI = $null
+            for ($i = 0; $i -lt 6; $i++) {
+                $dockerCLI = Test-DockerCLI
+                if ($dockerCLI) { break }
+                Write-Log "STEP 3: Docker CLI not available (attempt $($i+1)/6). Waiting 10s..."
+                Start-Sleep -Seconds 10
+            }
+            if (-not $dockerCLI) {
+                throw "Docker was installed but the docker command could not be found in this PowerShell session." + [Environment]::NewLine + [Environment]::NewLine +
+                    "This usually means the computer needs a restart to complete the Docker setup." + [Environment]::NewLine + [Environment]::NewLine +
+                    "Please restart your computer and run the installer again."
+            }
+            Write-Log "STEP 3: Docker CLI verified: $dockerCLI"
+        }
     }
 
     # Check if a restart is needed (Docker exit 3010 OR WSL2 pending)
@@ -842,6 +1019,15 @@ try {
         exit 3010
     }
     Write-Log "STEP 3: Done - Docker Desktop ready and daemon running"
+
+    # ── Pre-STEP 4 safety: refresh PATH for all remaining docker commands ──
+    Write-Log "STEP 3→4: Refreshing PATH to ensure Docker CLI is available..."
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+    if (-not (Test-DockerCLI)) {
+        throw "Docker command not available after PATH refresh. A system restart may be required." + [Environment]::NewLine + [Environment]::NewLine +
+            "Please restart your computer and run the installer again."
+    }
+    Write-Log "STEP 3→4: Docker CLI confirmed accessible."
 
     Write-Log "STEP 4: Loading/Pulling image"
     Set-Progress -Percent 28 -Step "Loading workspace components..."
@@ -858,7 +1044,38 @@ try {
         }
         Pull-OnlineImage
     }
-    Write-Log "STEP 4: Done - image ready"
+    Write-Log "STEP 4: Done - workspace image ready"
+
+    Write-Log "STEP 4b: Pre-pulling dependency images (mariadb, redis)..."
+    Set-Progress -Percent 72 -Step "Preparing database and cache components..."
+    $depImages = @(
+        @{ Image = "mariadb:10.6";            Name = "Database" },
+        @{ Image = "redis:6.2-alpine";         Name = "Cache" }
+    )
+    foreach ($dep in $depImages) {
+        Write-Log "STEP 4b: Pulling $($dep.Image)..."
+        $pullOutput = ""
+        $pullExit = 0
+        try {
+            docker pull $dep.Image 2>&1 | ForEach-Object {
+                $line = $_.ToString()
+                Write-Log "  $($dep.Name): $line"
+                if ($line -match "Pull complete" -or $line -match "Download complete" -or $line -match "Already exists") {
+                    Set-Progress -Percent 73 -Step "$($dep.Name) component ready..."
+                }
+            }
+            $pullExit = $LASTEXITCODE
+        } catch {
+            Write-Log "STEP 4b: Exception pulling $($dep.Image): $($_.Exception.Message)"
+            $pullExit = 1
+        }
+        if ($pullExit -ne 0) {
+            Write-Log "STEP 4b: WARNING - Failed to pull $($dep.Image) (exit code: $pullExit). Will retry during container start."
+        } else {
+            Write-Log "STEP 4b: $($dep.Image) ready."
+        }
+    }
+    Write-Log "STEP 4b: Dependency image pre-pull complete."
 
     Write-Log "STEP 5: Starting Docker containers"
     Set-Progress -Percent 75 -Step "Starting workspace containers..."
@@ -960,6 +1177,14 @@ try {
             "2. If Docker Desktop opens automatically, wait 30 seconds`r`n" +
             "3. Run this installer again`r`n`r`n" +
             "If it still fails after restart, contact support."
+    } elseif ($errMsg -match "could not be started automatically") {
+        $userMsg = "Docker was found on your computer but could not be started.`r`n`r`n" +
+            "Please start Docker Desktop manually:`r`n" +
+            "1. Press the Windows key`r`n" +
+            "2. Type 'Docker Desktop'`r`n" +
+            "3. Click on Docker Desktop to open it`r`n" +
+            "4. Wait for the whale icon in the taskbar (1-2 minutes)`r`n" +
+            "5. Then run this installer again."
     } elseif ($errMsg -match "Failed to start workspace") {
         $userMsg = "Docker containers failed to start.`r`n`r`n" +
             "This can happen if another program is using port 8000,`r`n" +
@@ -998,6 +1223,7 @@ try {
     if ($errMsg -eq "NO_INTERNET_NO_DOCKER") { $errorCode = "NO_INTERNET_NO_DOCKER" }
     elseif ($errMsg -eq "NO_IMAGE_NO_INTERNET") { $errorCode = "NO_IMAGE_NO_INTERNET" }
     elseif ($errMsg -eq "VIRTUALIZATION_DISABLED") { $errorCode = "VIRTUALIZATION_DISABLED" }
+    elseif ($errMsg -match "could not be started automatically") { $errorCode = "DOCKER_START_FAILED" }
     elseif ($errMsg -match "Docker did not start") { $errorCode = "DOCKER_START_FAILED" }
     elseif ($errMsg -match "Web server did not respond") { $errorCode = "WEB_SERVER_FAILED" }
     elseif ($errMsg -match "Failed to start workspace") { $errorCode = "CONTAINER_START_FAILED" }

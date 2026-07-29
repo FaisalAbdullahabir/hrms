@@ -36,6 +36,7 @@ WizardSmallImageFile=assets\wizard_small.bmp
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 DisableProgramGroupPage=yes
+DisableDirPage=no
 DisableReadyPage=no
 DisableFinishedPage=yes
 CloseApplications=no
@@ -81,7 +82,9 @@ Type: files; Name: "{app}\install-progress-done.txt"
 Type: files; Name: "{app}\install.pid"
 Type: files; Name: "{app}\force-internet.txt"
 Type: files; Name: "{app}\lawnhive-debug.txt"
+Type: filesandordirs; Name: "{app}"
 Type: files; Name: "{autodesktop}\Resume LawnHive Installation.lnk"
+Type: files; Name: "{group}\Resume Installation.lnk"
 
 [Code]
 type
@@ -108,6 +111,9 @@ function SetWindowPos(hWnd: Integer; hWndInsertAfter: Integer; X: Integer; Y: In
 external 'SetWindowPos@user32.dll stdcall';
 function GetForegroundWindow(): Integer;
 external 'GetForegroundWindow@user32.dll stdcall';
+function GetDiskFreeSpaceEx(lpDirectoryName: AnsiString; var lpFreeBytesAvailableToCaller: Int64;
+  var lpTotalNumberOfBytes: Int64; var lpTotalNumberOfFreeBytes: Int64): Boolean;
+external 'GetDiskFreeSpaceExA@kernel32.dll stdcall';
 
 var
   ClientIdPage: TInputQueryWizardPage;
@@ -150,6 +156,60 @@ end;
 function ExpandStr(const S: String): String;
 begin
   Result := ExpandConstant(S);
+end;
+
+function GetDriveFreeSpace(const Dir: String): Int64;
+var
+  FreeAvailable, TotalBytes, TotalFree: Int64;
+begin
+  Result := 0;
+  if GetDiskFreeSpaceEx(Dir, FreeAvailable, TotalBytes, TotalFree) then
+    Result := FreeAvailable;
+end;
+
+function WarnLowDriveSpace(const DriveLabel, DriveRoot: String; const NeededGB: Integer): Boolean;
+var
+  FreeBytes, NeededBytes: Int64;
+  FreeGB: Integer;
+begin
+  Result := True;
+  NeededBytes := NeededGB * 1024 * 1024 * 1024;
+  FreeBytes := GetDriveFreeSpace(DriveRoot);
+  FreeGB := FreeBytes div (1024 * 1024 * 1024);
+  if FreeBytes < NeededBytes then
+  begin
+    if MsgBox('Warning: ' + DriveLabel + ' (' + DriveRoot + ') has only about ' +
+      IntToStr(FreeGB) + 'GB free.' + #13#10 + #13#10 +
+      'The workspace needs at least ' + IntToStr(NeededGB) + 'GB free on this drive.' + #13#10 + #13#10 +
+      'Do you want to continue anyway?',
+      mbConfirmation, MB_YESNO) = IDNO then
+      Result := False;
+  end;
+end;
+
+function CheckDiskSpaceOnDrive(const AppDir: String): Boolean;
+var
+  AppDrive: String;
+begin
+  Result := True;
+
+  { Always check C: drive — Docker stores data there }
+  if not WarnLowDriveSpace('C: drive (for Docker data)', 'C:\', 6) then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  { Check selected install drive }
+  AppDrive := Copy(AppDir, 1, 2);
+  if AppDrive <> 'C:' then
+  begin
+    if not WarnLowDriveSpace('Selected install drive', AppDrive + '\', 1) then
+    begin
+      Result := False;
+      Exit;
+    end;
+  end;
 end;
 
 function IsDockerInstalled: Boolean;
@@ -200,6 +260,14 @@ begin
       Result := False;
       Exit;
     end;
+  end
+  else if CurPageID = wpSelectDir then
+  begin
+    if not CheckDiskSpaceOnDrive(ExpandConstant('{app}')) then
+    begin
+      Result := False;
+      Exit;
+    end;
   end;
 end;
 
@@ -208,8 +276,10 @@ function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo,
 begin
   Result := MemoDirInfo + NewLine + NewLine +
     'Client ID: ' + ClientIdValue + NewLine + NewLine +
-    'The installer will configure everything automatically.'#13#10 +
-    'Please do not turn off your computer during setup.';
+    'The installer will configure everything automatically.' + NewLine +
+    'Please do not turn off your computer during setup.' + NewLine + NewLine +
+    'Note: Docker Desktop stores its data on C: drive.' + NewLine +
+    'Make sure C: has at least 6GB free space.';
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -607,6 +677,80 @@ begin
   end;
 end;
 
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+  ComposeFile: String;
+  CleanupScript: String;
+  SL: TStringList;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    if MsgBox('Remove all LawnHive Workspace data?' + #13#10 + #13#10 +
+      'This will permanently delete:' + #13#10 +
+      '  - All workspace containers and settings' + #13#10 +
+      '  - All database data (employees, records, files)' + #13#10 +
+      '  - All backups' + #13#10 + #13#10 +
+      'This cannot be undone. Continue?',
+      mbConfirmation, MB_YESNO) = IDYES then
+    begin
+      ComposeFile := ExpandConstant('{app}\docker-compose.yml');
+
+      if FileExists(ComposeFile) then
+      begin
+        { Step 1: Stop and remove containers + networks + volumes }
+        CleanupScript := ExpandConstant('{tmp}\lawnhive-docker-cleanup.ps1');
+        SL := TStringList.Create;
+        try
+          SL.Add('# Auto-generated cleanup script');
+          SL.Add('$ErrorActionPreference = ''Continue''');
+          SL.Add('');
+          SL.Add('# Stop and remove containers, networks');
+          SL.Add('docker compose -f "' + ComposeFile + '" down --remove-orphans 2>$null');
+          SL.Add('');
+          SL.Add('# Remove named volumes');
+          SL.Add('docker volume rm lawnhiveworkspace_frappe_sites 2>$null');
+          SL.Add('docker volume rm lawnhiveworkspace_frappe_backups 2>$null');
+          SL.Add('docker volume rm lawnhiveworkspace_mariadb_data 2>$null');
+          SL.Add('docker volume rm lawnhiveworkspace_redis_data 2>$null');
+          SL.Add('docker volume rm lawnhiveworkspace_frappe_logs 2>$null');
+          SL.Add('');
+          SL.Add('# Also try volume names without prefix (older installs)');
+          SL.Add('docker volume rm frappe_sites 2>$null');
+          SL.Add('docker volume rm frappe_backups 2>$null');
+          SL.Add('docker volume rm mariadb_data 2>$null');
+          SL.Add('docker volume rm redis_data 2>$null');
+          SL.Add('docker volume rm frappe_logs 2>$null');
+          SL.Add('');
+          SL.Add('# Remove lawnHive-branded images');
+          SL.Add('docker rmi faisalabdullahabir/workspace:latest 2>$null');
+          SL.SaveToFile(CleanupScript);
+        finally
+          SL.Free;
+        end;
+
+        Exec('powershell.exe',
+          '-NoProfile -ExecutionPolicy Bypass -File "' + CleanupScript + '"',
+          '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+        DeleteFile(CleanupScript);
+
+        if ResultCode <> 0 then
+        begin
+          MsgBox('Warning: Some Docker resources could not be removed.' + #13#10 +
+            'You may need to manually remove them:' + #13#10 + #13#10 +
+            '  docker volume rm lawnhiveworkspace_frappe_sites' + #13#10 +
+            '  docker volume rm lawnhiveworkspace_mariadb_data' + #13#10 +
+            '  docker volume rm lawnhiveworkspace_redis_data' + #13#10 +
+            '  docker volume rm lawnhiveworkspace_frappe_backups' + #13#10 +
+            '  docker volume rm lawnhiveworkspace_frappe_logs',
+            mbInformation, MB_OK);
+        end;
+      end;
+    end;
+  end;
+end;
+
 procedure DeinitializeSetup;
 var
   ResultCode: Integer;
@@ -620,12 +764,12 @@ begin
     DeleteFile(ExpandConstant('{app}\install.pid'));
     DeleteFile(ExpandConstant('{app}\force-internet.txt'));
     DeleteFile(ExpandConstant('{app}\lawnhive-debug.txt'));
-    
+
     ResumeLnk := ExpandConstant('{autodesktop}\Resume LawnHive Installation.lnk');
     if FileExists(ResumeLnk) then
       DeleteFile(ResumeLnk);
   end;
-  
+
   if NeedsRestart then
   begin
     Exec('shutdown.exe', '/r /t 5 /c "LawnHive Workspace setup will continue after restart"',

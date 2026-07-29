@@ -63,15 +63,57 @@ fi
 
 cleanup_partial_site() {
     log "Cleaning up partial site data..."
-    bench drop-site "$SITE_NAME" --root-password "$DB_ROOT_PASSWORD" 2>/dev/null || true
 
-    if [ -d "sites/${SITE_NAME}" ]; then
-        find "sites/${SITE_NAME}" -mindepth 1 -not -path "*/private/backups*" -not -path "*/private/backups" -delete 2>/dev/null || true
-        rm -rf "sites/${SITE_NAME}/apps" "sites/${SITE_NAME}/locks" "sites/${SITE_NAME}/site_config.json" "sites/${SITE_NAME}/site_database.sql" "sites/${SITE_NAME}/common_site_config.json" 2>/dev/null || true
+    # Step 1: Try bench drop-site (correctly drops database + filesystem)
+    log "Attempting bench drop-site..."
+    DROP_OUTPUT=$(bench drop-site "$SITE_NAME" --root-password "$DB_ROOT_PASSWORD" 2>&1) || true
+    log "bench drop-site output: $DROP_OUTPUT"
+
+    # Step 2: Check if database still exists (bench drop-site may fail if DB name doesn't match site name)
+    SITE_DB=$(mysql -h "$DB_HOST" -u root -p"$DB_ROOT_PASSWORD" -N -e "SHOW DATABASES" 2>/dev/null | grep -i "$SITE_NAME" || true)
+    if [ -n "$SITE_DB" ]; then
+        log "WARNING: Database '$SITE_DB' still exists after bench drop-site. Dropping manually..."
+        mysql -h "$DB_HOST" -u root -p"$DB_ROOT_PASSWORD" -e "DROP DATABASE IF EXISTS \`$SITE_DB\`" 2>/dev/null || true
+        log "Dropped database: $SITE_DB"
     fi
+
+    # Step 3: Also check for orphaned databases from previous failed attempts (hash-based names)
+    ORPHAN_DBS=$(mysql -h "$DB_HOST" -u root -p"$DB_ROOT_PASSWORD" -N -e "SHOW DATABASES" 2>/dev/null | grep -E '^_[a-f0-9]{16}$' || true)
+    if [ -n "$ORPHAN_DBS" ]; then
+        log "Found orphaned databases: $ORPHAN_DBS"
+        for orphan_db in $ORPHAN_DBS; do
+            log "Dropping orphaned database: $orphan_db"
+            mysql -h "$DB_HOST" -u root -p"$DB_ROOT_PASSWORD" -e "DROP DATABASE IF EXISTS \`$orphan_db\`" 2>/dev/null || true
+        done
+    fi
+
+    # Step 4: Remove site directory (preserve backups volume mount point)
+    if [ -d "sites/${SITE_NAME}" ]; then
+        log "Removing site directory: sites/${SITE_NAME}"
+        find "sites/${SITE_NAME}" -mindepth 1 -not -path "*/private/backups*" -delete 2>/dev/null || true
+        # Remove the directory itself (backups mount point survives since it's a volume)
+        rmdir "sites/${SITE_NAME}" 2>/dev/null || true
+        rmdir "sites/${SITE_NAME}/private" 2>/dev/null || true
+        rmdir "sites/${SITE_NAME}/private/backups" 2>/dev/null || true
+    fi
+
+    # Step 5: Clean up attempt counter
     rm -f "$ATTEMPT_FILE" 2>/dev/null || true
 
-    log "Partial cleanup done (backups volume preserved, attempt counter reset)."
+    # Step 6: Verify cleanup
+    if [ -d "sites/${SITE_NAME}" ]; then
+        log "WARNING: Site directory still exists (backups volume mount point - this is expected)"
+    else
+        log "Site directory successfully removed"
+    fi
+    REMAINING_DB=$(mysql -h "$DB_HOST" -u root -p"$DB_ROOT_PASSWORD" -N -e "SHOW DATABASES" 2>/dev/null | grep -i "$SITE_NAME" || true)
+    if [ -n "$REMAINING_DB" ]; then
+        log "WARNING: Database '$REMAINING_DB' still exists after cleanup"
+    else
+        log "No leftover site databases found"
+    fi
+
+    log "Cleanup complete."
 }
 
 if [ -d "sites/${SITE_NAME}" ] && [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then
@@ -90,6 +132,13 @@ fi
 
 if [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then
     echo "$ATTEMPT" > "$ATTEMPT_FILE"
+    
+    # Pre-flight: if site dir still exists (e.g. backups mount point), force drop first
+    if [ -d "sites/${SITE_NAME}" ]; then
+        log "Site directory still exists after cleanup. Attempting bench drop-site as pre-flight..."
+        bench drop-site "$SITE_NAME" --root-password "$DB_ROOT_PASSWORD" 2>&1 | while IFS= read -r line; do log "  $line"; done || true
+    fi
+    
     log "Creating new site: ${SITE_NAME} (attempt ${ATTEMPT}/${MAX_ATTEMPTS})..."
     NEW_SITE_LOG="/home/frappe/frappe-bench/new-site-output.log"
     su -s /bin/bash frappe -c "HOME=/home/frappe bench new-site $SITE_NAME --db-host $DB_HOST --db-port $DB_PORT --mariadb-root-password '$DB_ROOT_PASSWORD' --admin-password '$ADMIN_PASSWORD' --no-mariadb-socket" > "$NEW_SITE_LOG" 2>&1
